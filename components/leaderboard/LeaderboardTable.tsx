@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Crown, Medal, Trophy } from "lucide-react";
 import type { LeaderboardEntry } from "@/types";
 import { api } from "@/services/api";
+import { useStore } from "@/lib/store/useStore";
+import { useHydrated } from "@/hooks/useHydrated";
 import { Avatar } from "@/components/art/Avatar";
 import { PartnerBadge } from "@/components/partners/PartnerBadge";
 import { TIERS } from "@/data/partners";
@@ -24,6 +26,8 @@ const PODIUM = [
 export function LeaderboardTable() {
   const [period, setPeriod] = useState<Period>("week");
   const [rows, setRows] = useState<LeaderboardEntry[] | null>(null);
+  const hydrated = useHydrated();
+  const managed = useStore((s) => s.managedUsers);
 
   useEffect(() => {
     let alive = true;
@@ -46,6 +50,21 @@ export function LeaderboardTable() {
     };
   }, [period]);
 
+  /**
+   * Overlay the live partner roster: granting or revoking a status in the
+   * admin panel is reflected in the rating immediately.
+   */
+  const display = useMemo(() => {
+    if (!rows) return null;
+    if (!hydrated) return rows;
+    const tiers = new Map(managed.map((m) => [m.username, m.partner?.tier ?? null]));
+    return rows.map((r) =>
+      tiers.has(r.username)
+        ? { ...r, partnerTier: tiers.get(r.username) ?? null }
+        : r,
+    );
+  }, [rows, managed, hydrated]);
+
   return (
     <>
       <Tabs
@@ -61,7 +80,7 @@ export function LeaderboardTable() {
 
       {/* podium */}
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {(rows ?? [null, null, null]).slice(0, 3).map((row, i) => {
+        {(display ?? [null, null, null]).slice(0, 3).map((row, i) => {
           const meta = PODIUM[i];
           const Icon = meta.icon;
           if (!row) return <Skeleton key={i} className="h-[196px]" />;
@@ -130,8 +149,8 @@ export function LeaderboardTable() {
         </div>
 
         <ul className="divide-y divide-white/[0.04]">
-          {rows
-            ? rows.map((row, i) => {
+          {display
+            ? display.map((row, i) => {
                 const tierColor = row.partnerTier
                   ? TIERS[row.partnerTier].colors[0]
                   : null;

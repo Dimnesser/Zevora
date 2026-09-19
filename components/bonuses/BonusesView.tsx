@@ -90,7 +90,7 @@ export function BonusesView() {
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       {/* ───────── daily ───────── */}
       <Card strong accent="#F5B841" className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
@@ -171,6 +171,22 @@ export function BonusesView() {
             </span>
           </div>
         )}
+
+        <ul className="mt-5 space-y-2 border-t border-white/[0.06] pt-4">
+          {[
+            "Награда растёт до 7-го дня, затем держится на максимуме.",
+            "Streak сбрасывается, если пропустить больше суток.",
+            "Партнёрам Zevora к каждому daily добавляется надбавка уровня.",
+          ].map((line) => (
+            <li
+              key={line}
+              className="flex gap-2.5 text-[12.5px] leading-relaxed text-slate-400"
+            >
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gold-400/70" />
+              {line}
+            </li>
+          ))}
+        </ul>
 
         <Button
           size="xl"

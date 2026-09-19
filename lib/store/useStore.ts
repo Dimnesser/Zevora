@@ -16,7 +16,7 @@ import { getSkin } from "@/data/skins";
 import { createItem, rollCase } from "@/lib/roll";
 import { uid } from "@/lib/utils";
 import { createPartnerProfile, promoFor } from "@/lib/partner";
-import { buildLiveDrops } from "@/data/community";
+import { buildLiveDrops, SEEDED_PARTNERS } from "@/data/community";
 import { TIERS } from "@/data/partners";
 
 const DAY = 86_400_000;
@@ -166,16 +166,11 @@ function buildStarterInventory(): InventoryItem[] {
   });
 }
 
-const MANAGED_SEED: {
-  username: string;
-  spent: number;
-  days: number;
-  tier?: PartnerTier;
-}[] = [
-  { username: "vortexkiller", spent: 1_840_000, days: 210, tier: "ambassador" },
-  { username: "nebula_ok", spent: 940_000, days: 160, tier: "elite" },
-  { username: "hexbyte", spent: 612_000, days: 120, tier: "creator" },
-  { username: "kr1stal", spent: 388_000, days: 96, tier: "partner" },
+const MANAGED_SEED: { username: string; spent: number; days: number }[] = [
+  { username: "vortexkiller", spent: 1_840_000, days: 210 },
+  { username: "nebula_ok", spent: 940_000, days: 160 },
+  { username: "hexbyte", spent: 612_000, days: 120 },
+  { username: "kr1stal", spent: 388_000, days: 96 },
   { username: "m1rage", spent: 275_000, days: 88 },
   { username: "shadowfox", spent: 191_000, days: 74 },
   { username: "aimlock", spent: 140_500, days: 61 },
@@ -194,8 +189,14 @@ function buildManagedUsers(): ManagedUser[] {
     avatarSeed: s.username,
     joinedAt: now - s.days * DAY,
     spent: s.spent,
-    partner: s.tier
-      ? createPartnerProfile(s.username, s.tier, now - (s.days - 20) * DAY)
+    // Tiers come from the shared seed so the admin roster, the profile
+    // badges and the leaderboard never disagree.
+    partner: SEEDED_PARTNERS[s.username]
+      ? createPartnerProfile(
+          s.username,
+          SEEDED_PARTNERS[s.username],
+          now - (s.days - 20) * DAY,
+        )
       : null,
   }));
 }
@@ -207,14 +208,14 @@ const BASE_PROMOS: PromoCode[] = [
 ];
 
 function buildPromoCodes(): PromoCode[] {
-  const partnerCodes: PromoCode[] = MANAGED_SEED.filter((s) => s.tier).map(
-    (s) => ({
-      code: promoFor(s.username),
-      amount: 400,
-      partner: s.username,
-      active: true,
-    }),
-  );
+  const partnerCodes: PromoCode[] = MANAGED_SEED.filter(
+    (s) => SEEDED_PARTNERS[s.username],
+  ).map((s) => ({
+    code: promoFor(s.username),
+    amount: 400,
+    partner: s.username,
+    active: true,
+  }));
   return [...BASE_PROMOS, ...partnerCodes];
 }
 

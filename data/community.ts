@@ -36,13 +36,16 @@ const NICKS = [
   "overpassed",
 ];
 
-/** Which leaderboard seats are partners — assigned by the owner, not earned. */
-const PARTNER_SEATS: Record<number, PartnerTier> = {
-  0: "ambassador",
-  2: "elite",
-  5: "creator",
-  9: "partner",
-  13: "partner",
+/**
+ * Canonical seed of who holds a partner status and at which level.
+ * The store and the leaderboard both read this, so a badge in the rating
+ * always matches the roster in the admin panel.
+ */
+export const SEEDED_PARTNERS: Record<string, PartnerTier> = {
+  vortexkiller: "ambassador",
+  nebula_ok: "elite",
+  hexbyte: "creator",
+  kr1stal: "partner",
 };
 
 const LEADERBOARD_SEED = 991733;
@@ -68,7 +71,7 @@ export function buildLeaderboard(count = 20): LeaderboardEntry[] {
       spent,
       won,
       upgrades: seededInt(rnd, 12, 480),
-      partnerTier: PARTNER_SEATS[i] ?? null,
+      partnerTier: SEEDED_PARTNERS[name] ?? null,
     });
   }
   return rows;
