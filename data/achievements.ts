@@ -1,0 +1,68 @@
+import type { Achievement } from "@/types";
+
+export const ACHIEVEMENTS: Achievement[] = [
+  {
+    id: "first-blood",
+    name: "Первое открытие",
+    description: "Откройте свой первый кейс в Zevora.",
+    icon: "package",
+    goal: 1,
+    metric: "casesOpened",
+  },
+  {
+    id: "collector",
+    name: "Коллекционер",
+    description: "Откройте 25 кейсов.",
+    icon: "boxes",
+    goal: 25,
+    metric: "casesOpened",
+  },
+  {
+    id: "case-machine",
+    name: "Машина",
+    description: "Откройте 100 кейсов.",
+    icon: "zap",
+    goal: 100,
+    metric: "casesOpened",
+  },
+  {
+    id: "gambler",
+    name: "Рисковый",
+    description: "Сделайте 10 апгрейдов.",
+    icon: "trending-up",
+    goal: 10,
+    metric: "upgrades",
+  },
+  {
+    id: "alchemist",
+    name: "Алхимик",
+    description: "Выиграйте 5 апгрейдов.",
+    icon: "flask",
+    goal: 5,
+    metric: "upgradesWon",
+  },
+  {
+    id: "high-roller",
+    name: "Хайроллер",
+    description: "Выбейте предмет дороже 25 000 ₽.",
+    icon: "gem",
+    goal: 25000,
+    metric: "bestDropValue",
+  },
+  {
+    id: "millionaire",
+    name: "Миллионер",
+    description: "Выиграйте предметов на 1 000 000 ₽.",
+    icon: "crown",
+    goal: 1000000,
+    metric: "totalWon",
+  },
+  {
+    id: "streaker",
+    name: "Постоянство",
+    description: "Соберите streak из 7 дней.",
+    icon: "flame",
+    goal: 7,
+    metric: "streak",
+  },
+];

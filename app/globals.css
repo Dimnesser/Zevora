@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+      Roboto, sans-serif;
+    --font-display: "Space Grotesk", var(--font-sans);
+
+    --r-common: #7c8aa6;
+    --r-rare: #3e82f7;
+    --r-epic: #a855f7;
+    --r-legendary: #f5b841;
+    --r-mythic: #ff3b6b;
+
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    /* Decorative glows and the hero scene bleed past the viewport; clipping
+       here as well as on body keeps the page from scrolling sideways. */
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-void text-slate-200 font-sans antialiased;
+    background-image:
+      radial-gradient(
+        900px circle at 12% -8%,
+        rgba(91, 75, 255, 0.18),
+        transparent 60%
+      ),
+      radial-gradient(
+        700px circle at 88% 4%,
+        rgba(34, 211, 238, 0.12),
+        transparent 55%
+      ),
+      radial-gradient(
+        1000px circle at 50% 110%,
+        rgba(124, 92, 255, 0.1),
+        transparent 60%
+      );
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: rgba(110, 113, 255, 0.35);
+    color: #fff;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #080a14;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1e2338;
+    border-radius: 999px;
+    border: 2px solid #080a14;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2c3352;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight text-white;
+  }
+}
+
+@layer components {
+  /* Frosted panel — the core Zevora surface */
+  .glass {
+    @apply relative rounded-2xl border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl;
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+      0 24px 60px -30px rgba(0, 0, 0, 0.9);
+  }
+
+  .glass-strong {
+    @apply relative rounded-2xl border border-white/10 backdrop-blur-2xl;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.02) 100%
+      ),
+      rgba(13, 16, 32, 0.72);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+      0 30px 80px -40px rgba(0, 0, 0, 1);
+  }
+
+  .hairline {
+    @apply border border-white/[0.07];
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      100deg,
+      #ffffff 0%,
+      #c9c8ff 45%,
+      #7ee7f5 100%
+    );
+  }
+
+  .text-gradient-brand {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(100deg, #6e71ff 0%, #a855f7 50%, #22d3ee 100%);
+  }
+
+  /* Faint technical grid used behind hero / lounge sections */
+  .bg-tech-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 56px 56px;
+    background-position: center;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-xl bg-white/[0.045];
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.07),
+      transparent
+    );
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Safe-area aware bottom padding for the mobile tab bar */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
+}
+
+@layer utilities {
+  .mask-fade-x {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 8%,
+      #000 92%,
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 8%,
+      #000 92%,
+      transparent
+    );
+  }
+  .perspective {
+    perspective: 1200px;
+  }
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
