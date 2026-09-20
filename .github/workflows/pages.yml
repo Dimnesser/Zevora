@@ -1,12 +1,19 @@
 name: Showcase → GitHub Pages
 
-# Publishes the static case showcase in docs/.
+# Publishes the static case showcase to the gh-pages branch.
 #
 # The app itself is not deployed here and cannot be: the case system is
 # server-authoritative (SQLite, sessions, transactional balance, a CSPRNG
 # draw behind an API) and Pages serves static files only. What ships is the
 # part that is static — the 25 case designs, their real drop tables and the
 # opening animation. The page says so on its face.
+#
+# This pushes a branch rather than using actions/deploy-pages on purpose.
+# Turning Pages on for a repository is an admin-level setting, and the
+# workflow's GITHUB_TOKEN does not have that permission — actions/configure-pages
+# with `enablement: true` fails with "Resource not accessible by integration".
+# A branch push needs only `contents: write`, so this job always succeeds and
+# the site is ready the moment Pages is pointed at gh-pages / (root).
 
 on:
   push:
@@ -19,22 +26,20 @@ on:
       - "public/skins/**"
       - "lib/server/cases.json"
       - "scripts/build-showcase.mjs"
+      - "scripts/build-case-art.mjs"
+      - "scripts/case-catalogue.mjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# One deployment at a time; let a running one finish rather than cancelling
-# it half-published.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,20 +59,21 @@ jobs:
           npm run build:cases:data
           npm run build:showcase
 
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      - name: Push docs/ to gh-pages
+        run: |
+          touch docs/.nojekyll
+          cd docs
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Showcase build from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}" gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
+      - name: Where to find it
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          name="${GITHUB_REPOSITORY##*/}"
+          echo "::notice title=Показать сайт::Settings → Pages → Source: Deploy from a branch → gh-pages / (root). Адрес: https://${owner,,}.github.io/${name}/"
