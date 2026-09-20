@@ -75,7 +75,7 @@ export function ProfileView() {
   );
 
   if (!ready) {
-    return <Skeleton className="h-[320px] w-full rounded-3xl" />;
+    return <Skeleton className="h-[320px] w-full rounded-xl" />;
   }
 
   if (!user) {
@@ -212,7 +212,7 @@ export function ProfileView() {
                 <div
                   key={a.id}
                   className={cn(
-                    "rounded-2xl border p-3.5 transition",
+                    "rounded-lg border p-3.5 transition",
                     done
                       ? "border-gold-400/40 bg-gold-400/[0.08]"
                       : "border-white/[0.07] bg-white/[0.02]",

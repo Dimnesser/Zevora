@@ -32,7 +32,7 @@ export function PerksGrid({
             transition={{ duration: 0.4, delay: Math.min(i, 9) * 0.04 }}
             whileHover={{ y: -4 }}
             className={cn(
-              "group relative overflow-hidden rounded-2xl border p-4 transition-colors duration-300",
+              "group relative overflow-hidden rounded-lg border p-4 transition-colors duration-300",
               has === false
                 ? "border-white/[0.05] bg-white/[0.015] opacity-60"
                 : "border-white/[0.08] bg-white/[0.03] hover:border-white/20",

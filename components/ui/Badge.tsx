@@ -15,23 +15,33 @@ export function Badge({ children, className, color, size = "sm" }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border font-semibold uppercase tracking-wider",
-        size === "xs" ? "px-2 py-0.5 text-[9px]" : "px-2.5 py-1 text-[10px]",
+        "inline-flex items-center gap-1.5 rounded-xs border font-mono font-medium uppercase",
+        "tracking-[0.12em] leading-none",
+        size === "xs" ? "px-1.5 py-[3px] text-[9px]" : "px-2 py-[5px] text-[10px]",
         color
           ? "border-transparent"
-          : "border-white/10 bg-white/[0.06] text-slate-300",
+          : "border-line bg-white/[0.045] text-slate-400",
         className,
       )}
       style={
         color
           ? {
               color,
-              backgroundColor: `${color}1F`,
-              borderColor: `${color}55`,
+              backgroundColor: `${color}16`,
+              borderColor: `${color}4D`,
             }
           : undefined
       }
     >
+      {/* A rarity chip carries a filled dot, so the grade is legible even
+          where the tint is too dark to read against the surface. */}
+      {color && (
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 rounded-full"
+          style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+        />
+      )}
       {children}
     </span>
   );

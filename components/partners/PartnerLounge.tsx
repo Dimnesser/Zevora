@@ -200,7 +200,7 @@ export function PartnerLounge({
 
         {/* link + promo */}
         <div className="relative mt-6 grid gap-3 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
+          <div className="rounded-lg border border-white/[0.09] bg-white/[0.035] p-4">
             <p className="mb-2.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">
               Ваша партнёрская ссылка
             </p>
@@ -226,7 +226,7 @@ export function PartnerLounge({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.09] bg-white/[0.035] p-4">
+          <div className="rounded-lg border border-white/[0.09] bg-white/[0.035] p-4">
             <p className="mb-2.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">
               Персональный промокод
             </p>
@@ -265,7 +265,7 @@ export function PartnerLounge({
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.05 * i }}
-              className="rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3.5"
+              className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3.5 py-3.5"
             >
               <p className="text-[10.5px] uppercase tracking-wider text-slate-500">
                 {s.label}

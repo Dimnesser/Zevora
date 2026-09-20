@@ -59,7 +59,7 @@ export function CaseDetail({ slug }: { slug: string }) {
         Все кейсы
       </Link>
 
-      <div className="relative mb-8 overflow-hidden rounded-3xl">
+      <div className="relative mb-8 overflow-hidden rounded-xl">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-25 blur-[80px]"

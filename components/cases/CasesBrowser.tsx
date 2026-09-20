@@ -85,9 +85,9 @@ export function CasesBrowser() {
                 "pl-10 pr-4 text-[13px] text-white outline-none transition focus:border-zev-400/70",
               )}
             >
-              <option value="default" className="bg-surface">По умолчанию</option>
-              <option value="price-asc" className="bg-surface">Сначала дешёвые</option>
-              <option value="price-desc" className="bg-surface">Сначала дорогие</option>
+              <option value="default" className="bg-slab">По умолчанию</option>
+              <option value="price-asc" className="bg-slab">Сначала дешёвые</option>
+              <option value="price-desc" className="bg-slab">Сначала дорогие</option>
             </select>
             <SlidersHorizontal
               size={15}
@@ -112,8 +112,8 @@ export function CasesBrowser() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {visible.map((kase) => (
-              <CaseCard key={kase.id} kase={kase} />
+            {visible.map((kase, i) => (
+              <CaseCard key={kase.id} kase={kase} index={i} />
             ))}
           </div>
           <p className="mt-8 text-center text-[12.5px] text-slate-600">

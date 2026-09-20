@@ -38,7 +38,7 @@ export function Toaster() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, x: 24, scale: 0.96 }}
               transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              className="glass-strong pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3"
+              className="glass-strong pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg px-4 py-3"
               style={{ borderColor: `${accent}40` }}
             >
               <span

@@ -44,7 +44,7 @@ export function LiveDrops() {
   if (drops.length === 0) return null;
 
   return (
-    <section className="relative border-y border-white/[0.06] bg-abyss/50">
+    <section className="relative border-y border-white/[0.06] bg-ink/50">
       <div className="mx-auto flex max-w-[1440px] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <div className="hidden shrink-0 items-center gap-2 pr-4 sm:flex">
           <span className="relative flex h-2 w-2">

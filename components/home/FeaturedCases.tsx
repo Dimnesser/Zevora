@@ -32,7 +32,7 @@ export function FeaturedCases() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => <CaseCardSkeleton key={i} />)
-          : featured.map((kase) => <CaseCard key={kase.id} kase={kase} />)}
+          : featured.map((kase, i) => <CaseCard key={kase.id} kase={kase} index={i} />)}
       </div>
     </section>
   );

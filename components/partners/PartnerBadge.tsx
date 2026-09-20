@@ -60,7 +60,7 @@ export function PartnerCrest({ tier }: { tier: PartnerTier }) {
   const [c1, c2] = meta.colors;
   return (
     <div
-      className="relative inline-flex items-center gap-3 rounded-2xl border px-4 py-2.5"
+      className="relative inline-flex items-center gap-3 rounded-lg border px-4 py-2.5"
       style={{
         borderColor: `${c1}55`,
         background: `linear-gradient(120deg, ${c1}1F, ${c2}12)`,

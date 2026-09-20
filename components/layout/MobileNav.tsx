@@ -41,7 +41,7 @@ export function MobileNav() {
                 >
                   <span
                     className={cn(
-                      "-mt-6 flex h-[52px] w-[52px] items-center justify-center rounded-2xl transition-all duration-300",
+                      "-mt-6 flex h-[52px] w-[52px] items-center justify-center rounded-lg transition-all duration-300",
                       "bg-[linear-gradient(135deg,#5B4BFF,#7C5CFF_55%,#22D3EE)]",
                       active
                         ? "shadow-[0_10px_34px_-8px_rgba(91,75,255,1)]"

@@ -98,7 +98,7 @@ export function UserMenu() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="glass-strong absolute right-0 z-50 mt-2 w-[268px] overflow-hidden rounded-2xl p-1.5"
+            className="glass-strong absolute right-0 z-50 mt-2 w-[268px] overflow-hidden rounded-lg p-1.5"
           >
             <div className="flex items-center gap-3 px-3 py-3">
               <Avatar seed={user.avatar_seed} size={42} ring={ring} />

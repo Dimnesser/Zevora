@@ -91,7 +91,7 @@ export function PartnersAdmin() {
   };
 
   if (loading && users.length === 0) {
-    return <Skeleton className="h-[560px] rounded-2xl" />;
+    return <Skeleton className="h-[560px] rounded-lg" />;
   }
 
   const perks = parseList(selected?.partner_perks ?? null);
@@ -223,7 +223,7 @@ export function PartnersAdmin() {
                       key={t.id}
                       onClick={() => void grant(t.id as Tier)}
                       className={cn(
-                        "relative overflow-hidden rounded-2xl border p-4 text-left transition",
+                        "relative overflow-hidden rounded-lg border p-4 text-left transition",
                         active ? "bg-white/[0.06]" : "bg-white/[0.02] hover:bg-white/[0.05]",
                       )}
                       style={{

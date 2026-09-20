@@ -2,74 +2,133 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   ZEVORA — design system
+   Tokens mirror tailwind.config.ts. Anything set here is used by
+   raw CSS and inline styles; anything there is used by utilities.
+   ============================================================ */
+
 @layer base {
   :root {
     --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
       Roboto, sans-serif;
     --font-display: "Space Grotesk", var(--font-sans);
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    --r-common: #7c8aa6;
-    --r-rare: #3e82f7;
-    --r-epic: #a855f7;
-    --r-legendary: #f5b841;
-    --r-mythic: #ff3b6b;
+    /* Valve's real grades — the same values the `rarities` table stores,
+       so a colour never disagrees with the database. */
+    --r-consumer: #b0c3d9;
+    --r-industrial: #5e98d9;
+    --r-milspec: #4b69ff;
+    --r-restricted: #8847ff;
+    --r-classified: #d32ce6;
+    --r-covert: #eb4b4b;
+    --r-extraordinary: #caab05;
+    --r-contraband: #e4ae39;
+
+    --accent: #5b4bff;
+    --ice: #5ae4ff;
+
+    /* Header height, so sticky offsets stay in one place. */
+    --nav-h: 60px;
 
     color-scheme: dark;
   }
 
   * {
-    @apply border-line;
+    @apply border-line-soft;
   }
 
   html {
     -webkit-tap-highlight-color: transparent;
-    /* Decorative glows and the hero scene bleed past the viewport; clipping
-       here as well as on body keeps the page from scrolling sideways. */
     overflow-x: hidden;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-void text-slate-200 font-sans antialiased;
+    @apply bg-void text-slate-300 font-sans antialiased;
+    overflow-x: hidden;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  /* ── Depth, in three fixed layers behind everything ──
+     1. broad cool light pools
+     2. a faint technical grid that fades out downward
+     3. film grain + an edge vignette so the frame has weight
+     They are fixed and pointer-events:none, so they cost nothing
+     structurally and never intercept a click. */
+  body::before,
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::before {
+    background:
+      radial-gradient(
+        780px 520px at 8% -6%,
+        rgba(91, 75, 255, 0.16),
+        transparent 62%
+      ),
+      radial-gradient(
+        620px 460px at 94% 2%,
+        rgba(34, 211, 238, 0.09),
+        transparent 58%
+      ),
+      radial-gradient(
+        900px 700px at 50% 108%,
+        rgba(91, 75, 255, 0.08),
+        transparent 62%
+      ),
+      linear-gradient(180deg, #0a0c12 0%, #06070b 58%, #05060a 100%);
+  }
+
+  body::after {
+    /* Grain, generated rather than shipped as an image: at 3% opacity it
+       kills the banding that large dark gradients otherwise show. */
     background-image:
       radial-gradient(
-        900px circle at 12% -8%,
-        rgba(91, 75, 255, 0.18),
-        transparent 60%
+        ellipse 120% 80% at 50% 50%,
+        transparent 42%,
+        rgba(0, 0, 0, 0.55) 100%
       ),
-      radial-gradient(
-        700px circle at 88% 4%,
-        rgba(34, 211, 238, 0.12),
-        transparent 55%
-      ),
-      radial-gradient(
-        1000px circle at 50% 110%,
-        rgba(124, 92, 255, 0.1),
-        transparent 60%
-      );
-    background-attachment: fixed;
-    overflow-x: hidden;
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.38'/%3E%3C/svg%3E");
+    background-size:
+      100% 100%,
+      160px 160px;
+    opacity: 0.55;
+    mix-blend-mode: overlay;
+  }
+
+  /* Everything the app renders sits above the backdrop. */
+  body > * {
+    position: relative;
+    z-index: 1;
   }
 
   ::selection {
-    background: rgba(110, 113, 255, 0.35);
+    background: rgba(91, 75, 255, 0.4);
     color: #fff;
   }
 
-  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: #080a14;
+    background: #06070b;
   }
   ::-webkit-scrollbar-thumb {
-    background: #1e2338;
+    background: #232937;
     border-radius: 999px;
-    border: 2px solid #080a14;
+    border: 3px solid #06070b;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #2c3352;
+    background: #333c52;
   }
 
   h1,
@@ -77,62 +136,135 @@
   h3,
   h4 {
     @apply font-display tracking-tight text-white;
+    font-feature-settings: "ss01" on;
+  }
+
+  :focus-visible {
+    outline: none;
+    @apply shadow-focus;
+    border-radius: 6px;
   }
 }
 
 @layer components {
-  /* Frosted panel — the core Zevora surface */
-  .glass {
-    @apply relative rounded-2xl border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl;
-    box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
-      0 24px 60px -30px rgba(0, 0, 0, 0.9);
+  /* ════════ surfaces ════════
+     One ladder, four rungs. Pick by how far the element should sit from
+     the page, not by how it should look. */
+
+  .surface {
+    @apply relative rounded-lg border border-line-soft bg-slab/80 backdrop-blur-sm;
+    box-shadow: var(--tw-shadow-lip, inset 0 1px 0 0 rgba(255, 255, 255, 0.04));
   }
 
-  .glass-strong {
-    @apply relative rounded-2xl border border-white/10 backdrop-blur-2xl;
+  .surface-panel {
+    @apply relative rounded-lg border border-line bg-panel/75 backdrop-blur-md;
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.055),
+      0 4px 14px -6px rgba(0, 0, 0, 0.65);
+  }
+
+  .surface-raised {
+    @apply relative rounded-lg border border-line bg-raised/80 backdrop-blur-md;
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+      0 16px 40px -18px rgba(0, 0, 0, 0.85);
+  }
+
+  .surface-overlay {
+    @apply relative rounded-xl border border-white/10 backdrop-blur-2xl;
     background:
       linear-gradient(
         180deg,
-        rgba(255, 255, 255, 0.06) 0%,
-        rgba(255, 255, 255, 0.02) 100%
+        rgba(255, 255, 255, 0.05) 0%,
+        rgba(255, 255, 255, 0.015) 100%
       ),
-      rgba(13, 16, 32, 0.72);
+      rgba(15, 18, 26, 0.92);
     box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
-      0 30px 80px -40px rgba(0, 0, 0, 1);
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+      0 32px 80px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  /* Kept so existing markup keeps rendering while screens migrate. */
+  .glass {
+    @apply surface-panel;
+  }
+  .glass-strong {
+    @apply surface-overlay;
   }
 
   .hairline {
-    @apply border border-white/[0.07];
+    @apply border border-line-soft;
   }
+
+  /* ════════ technical HUD bits ════════ */
+
+  /* Small-caps metadata label — the texture that makes a game UI feel built */
+  .meta {
+    @apply font-mono text-label uppercase text-slate-500;
+  }
+
+  /* Hairline corner ticks, drawn with gradients so no extra nodes are needed */
+  .ticks::before,
+  .ticks::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    pointer-events: none;
+    opacity: 0.5;
+  }
+  .ticks::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid currentColor;
+    border-left: 1px solid currentColor;
+  }
+  .ticks::after {
+    right: -1px;
+    bottom: -1px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+  }
+
+  /* ════════ text ════════ */
 
   .text-gradient {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(
       100deg,
       #ffffff 0%,
-      #c9c8ff 45%,
-      #7ee7f5 100%
+      #d6d8ff 46%,
+      #8ff2ff 100%
     );
   }
 
   .text-gradient-brand {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(100deg, #6e71ff 0%, #a855f7 50%, #22d3ee 100%);
+    background-image: linear-gradient(
+      100deg,
+      #9398ff 0%,
+      #7075ff 45%,
+      #5ae4ff 100%
+    );
   }
 
-  /* Faint technical grid used behind hero / lounge sections */
+  /* ════════ decoration ════════ */
+
   .bg-tech-grid {
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 56px 56px;
+      linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    background-size: 64px 64px;
     background-position: center;
   }
 
+  /* A soft light pool, positioned by the caller */
+  .glow-pool {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+  }
+
   .skeleton {
-    @apply relative overflow-hidden rounded-xl bg-white/[0.045];
+    @apply relative overflow-hidden rounded-md bg-white/[0.04];
   }
   .skeleton::after {
     content: "";
@@ -140,7 +272,7 @@
     background-image: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.06),
       transparent
     );
   }
@@ -153,7 +285,6 @@
     scrollbar-width: none;
   }
 
-  /* Safe-area aware bottom padding for the mobile tab bar */
   .pb-safe {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
@@ -164,27 +295,38 @@
     mask-image: linear-gradient(
       to right,
       transparent,
-      #000 8%,
-      #000 92%,
+      #000 7%,
+      #000 93%,
       transparent
     );
     -webkit-mask-image: linear-gradient(
       to right,
       transparent,
-      #000 8%,
-      #000 92%,
+      #000 7%,
+      #000 93%,
       transparent
     );
   }
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, #000 62%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+  }
   .perspective {
-    perspective: 1200px;
+    perspective: 1100px;
   }
   .preserve-3d {
     transform-style: preserve-3d;
   }
+  /* Tabular figures keep prices from shifting as they tick. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {

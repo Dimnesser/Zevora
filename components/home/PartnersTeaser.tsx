@@ -15,7 +15,7 @@ export function PartnersTeaser() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.55 }}
-        className="glass-strong relative overflow-hidden rounded-3xl px-6 py-10 sm:px-10 lg:px-14 lg:py-14"
+        className="glass-strong relative overflow-hidden rounded-xl px-6 py-10 sm:px-10 lg:px-14 lg:py-14"
         style={{ borderColor: "rgba(245,184,65,0.22)" }}
       >
         <div
@@ -65,7 +65,7 @@ export function PartnersTeaser() {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: 0.08 * i }}
-                className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-3"
+                className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3.5 py-3"
               >
                 <span
                   className="h-9 w-1.5 shrink-0 rounded-full"

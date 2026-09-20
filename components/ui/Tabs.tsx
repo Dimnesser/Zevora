@@ -33,7 +33,7 @@ export function Tabs<T extends string>({
   return (
     <div
       className={cn(
-        "no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-white/[0.07] bg-white/[0.03] p-1",
+        "no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-white/[0.07] bg-white/[0.03] p-1",
         className,
       )}
       role="tablist"

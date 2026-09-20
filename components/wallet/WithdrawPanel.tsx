@@ -91,7 +91,7 @@ export function WithdrawPanel() {
       </Field>
 
       {pending.length > 0 && (
-        <div className="rounded-2xl border border-aqua-400/25 bg-aqua-400/[0.07] px-4 py-3">
+        <div className="rounded-lg border border-aqua-400/25 bg-aqua-400/[0.07] px-4 py-3">
           <p className="text-[13px] font-semibold text-aqua-300">
             В обработке: {pending.length} предм.
           </p>
@@ -184,7 +184,7 @@ export function WithdrawPanel() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5">
+      <div className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-4 py-3.5">
         <div className="flex items-center justify-between">
           <span className="text-[13px] text-slate-400">Выбрано {selected.length} предм.</span>
           <span className="text-[16px] font-bold tabular-nums text-white">

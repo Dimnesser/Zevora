@@ -107,7 +107,7 @@ export function DepositPanel({ onDone }: { onDone?: () => void }) {
                 key={m.id}
                 onClick={() => setMethod(m)}
                 className={cn(
-                  "relative flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition",
+                  "relative flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition",
                   active
                     ? "border-zev-400/60 bg-zev-500/[0.12]"
                     : "border-white/[0.08] bg-white/[0.025] hover:border-white/20",
@@ -133,7 +133,7 @@ export function DepositPanel({ onDone }: { onDone?: () => void }) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5">
+      <div className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-4 py-3.5">
         <Row label="Сумма" value={formatMinor(amount * 100)} />
         {bonus > 0 && (
           <Row label={`Бонус ${method.name}`} value={`+${formatMinor(bonus)}`} accent="#2FD98A" />

@@ -34,7 +34,7 @@ const COLUMNS = [
 
 export function Footer() {
   return (
-    <footer className="relative mt-24 border-t border-white/[0.07] bg-abyss/60">
+    <footer className="relative mt-24 border-t border-white/[0.07] bg-ink/60">
       <div className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>

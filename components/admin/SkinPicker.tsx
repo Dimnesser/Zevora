@@ -119,7 +119,7 @@ export function SkinPicker({
       )}
 
       {selected && (
-        <div className="rounded-2xl border border-white/[0.09] bg-white/[0.03] p-4">
+        <div className="rounded-lg border border-white/[0.09] bg-white/[0.03] p-4">
           <p className="mb-3 text-[13px] font-semibold text-white">{selected.market_name}</p>
           <div className="flex gap-2">
             <div className="flex-1">

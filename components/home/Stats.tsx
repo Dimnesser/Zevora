@@ -12,7 +12,7 @@ const STATS = [
 export function Stats() {
   return (
     <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-      <div className="glass grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-white/[0.05] lg:grid-cols-4">
+      <div className="glass grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-white/[0.05] lg:grid-cols-4">
         {STATS.map((s, i) => (
           <motion.div
             key={s.label}
@@ -20,7 +20,7 @@ export function Stats() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.4, delay: i * 0.06 }}
-            className="bg-surface/60 px-5 py-6 text-center lg:py-7"
+            className="bg-slab/60 px-5 py-6 text-center lg:py-7"
           >
             <p className="font-display text-2xl font-bold text-white lg:text-[30px]">
               {s.value}

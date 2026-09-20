@@ -23,7 +23,7 @@ export function TiersSection({ current }: { current?: PartnerTier | null }) {
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.45, delay: i * 0.07 }}
             className={cn(
-              "relative flex flex-col overflow-hidden rounded-2xl border p-5",
+              "relative flex flex-col overflow-hidden rounded-lg border p-5",
               active ? "bg-white/[0.05]" : "bg-white/[0.02]",
             )}
             style={{

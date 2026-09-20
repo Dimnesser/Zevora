@@ -132,15 +132,24 @@ export function Roulette({
   return (
     <div
       ref={containerRef}
-      className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-abyss/70 py-4"
+      className="ticks relative overflow-hidden rounded-md border border-line bg-ink/80 py-4 text-zev-400/50 shadow-[inset_0_1px_0_0_rgba(255,255,255,.05),inset_0_0_60px_-20px_rgba(0,0,0,.9)]"
     >
+      {/* scanline texture — reads as a screen the reel plays on */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 z-20 w-20 bg-gradient-to-r from-abyss to-transparent sm:w-28"
+        className="pointer-events-none absolute inset-0 z-10 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(0deg, rgba(255,255,255,.045) 0 1px, transparent 1px 3px)",
+        }}
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 z-20 w-20 bg-gradient-to-l from-abyss to-transparent sm:w-28"
+        className="pointer-events-none absolute inset-y-0 left-0 z-20 w-24 bg-gradient-to-r from-ink via-ink/80 to-transparent sm:w-36"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-0 z-20 w-24 bg-gradient-to-l from-ink via-ink/80 to-transparent sm:w-36"
       />
 
       {/* centre marker */}
@@ -149,7 +158,16 @@ export function Roulette({
         className="pointer-events-none absolute inset-y-0 left-1/2 z-30 w-px -translate-x-1/2"
         style={{
           background: `linear-gradient(180deg, transparent, ${markerColor}, transparent)`,
-          boxShadow: `0 0 18px 2px ${markerColor}`,
+          boxShadow: `0 0 20px 2px ${markerColor}`,
+        }}
+      />
+      {/* the lane the winner lands in, lit from the marker outward */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-2 left-1/2 z-10 -translate-x-1/2"
+        style={{
+          width: ITEM_W + 24,
+          background: `radial-gradient(closest-side, ${markerColor}1F, transparent)`,
         }}
       />
       <Pointer color={markerColor} position="top" />
@@ -167,17 +185,24 @@ export function Roulette({
           return (
             <div
               key={i}
-              className="relative shrink-0 overflow-hidden rounded-xl border transition-all duration-300"
+              className="relative shrink-0 overflow-hidden rounded border bg-slab/80 transition-[transform,box-shadow,border-color] duration-300 ease-premium"
               style={{
                 width: ITEM_W,
-                borderColor: isWinner ? color : "rgba(255,255,255,.07)",
-                background: isWinner
-                  ? `linear-gradient(180deg, ${color}33, transparent 70%)`
-                  : rarityGradient(color),
-                boxShadow: isWinner ? `0 0 32px -6px ${color}` : undefined,
+                borderColor: isWinner ? color : "rgba(255,255,255,.06)",
+                backgroundImage: rarityGradient(color),
+                boxShadow: isWinner
+                  ? `0 0 0 1px ${color}, 0 0 40px -4px ${color}`
+                  : "inset 0 1px 0 0 rgba(255,255,255,.04)",
+                transform: isWinner ? "scale(1.06)" : undefined,
               }}
             >
-              <div className="h-[62px] px-2 pt-2">
+              {/* lit top edge, the strongest rarity cue at a glance */}
+              <span
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-px"
+                style={{ background: `linear-gradient(90deg,transparent,${color},transparent)` }}
+              />
+              <div className="h-[62px] px-2 pt-2.5">
                 <SkinImage
                   imageUrl={skin.image_url}
                   art={skin.art}
@@ -185,18 +210,19 @@ export function Roulette({
                   glow={false}
                 />
               </div>
-              <p className="truncate px-2 pb-1 text-center text-[10px] font-medium text-slate-400">
+              <p className="meta truncate px-2 pb-0.5 pt-1 text-center">
                 {skin.weapon}
               </p>
               <p
-                className="truncate px-2 pb-2 text-center text-[10.5px] font-semibold"
+                className="truncate px-2 pb-2.5 text-center font-display text-[11px] font-semibold"
                 style={{ color }}
               >
                 {skin.finish}
               </p>
               <span
+                aria-hidden
                 className="absolute inset-x-0 bottom-0 h-0.5"
-                style={{ background: color }}
+                style={{ background: color, boxShadow: `0 0 10px ${color}` }}
               />
             </div>
           );

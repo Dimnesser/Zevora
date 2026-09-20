@@ -307,7 +307,7 @@ function StageSlot({
 
   return (
     <div
-      className="relative flex h-[104px] flex-1 flex-col items-center justify-center rounded-2xl border px-2 py-2 transition-colors"
+      className="relative flex h-[104px] flex-1 flex-col items-center justify-center rounded-lg border px-2 py-2 transition-colors"
       style={{
         borderColor: primary ? `${color}55` : "rgba(255,255,255,.07)",
         background: primary ? `${color}12` : "rgba(255,255,255,.02)",
@@ -368,7 +368,7 @@ function ResultBanner({ settled }: { settled: Settled }) {
     <motion.div
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className={cn("flex items-center gap-3 rounded-2xl border px-4 py-3")}
+      className={cn("flex items-center gap-3 rounded-lg border px-4 py-3")}
       style={{ borderColor: `${color}44`, background: `${color}12` }}
     >
       <span

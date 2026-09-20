@@ -16,7 +16,7 @@ export function PartnersPage() {
   if (!ready) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-[320px] w-full rounded-3xl" />
+        <Skeleton className="h-[320px] w-full rounded-xl" />
         <div className="grid gap-3 sm:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28" />

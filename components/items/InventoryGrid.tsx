@@ -10,6 +10,7 @@ import { useSession } from "@/lib/client/session";
 import { ItemCard } from "@/components/items/ItemCard";
 import { ItemCardSkeleton } from "@/components/ui/Skeleton";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { ITEM_KIND_LABEL, itemKind, type ItemKind } from "@/lib/client/display";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/Modal";
@@ -32,6 +33,7 @@ const RARITY_LABEL: Record<string, string> = {
 export function InventoryGrid() {
   const { user, ready, setBalance } = useSession();
   const [rarity, setRarity] = useState<string>("all");
+  const [kind, setKind] = useState<ItemKind | "all">("all");
   const [sort, setSort] = useState<Sort>("recent");
   const [selected, setSelected] = useState<number[]>([]);
   const [confirmSell, setConfirmSell] = useState(false);
@@ -57,6 +59,30 @@ export function InventoryGrid() {
     ],
     [data?.total, counts, items],
   );
+
+  /**
+   * Kind is filtered client-side on top of the server's rarity query.
+   * The weapon name is already in the payload, so this needs no extra
+   * round trip and the two filters compose.
+   */
+  const visible = useMemo(
+    () => (kind === "all" ? items : items.filter((i) => itemKind(i.weapon) === kind)),
+    [items, kind],
+  );
+
+  const kindTabs: TabItem<ItemKind | "all">[] = useMemo(() => {
+    const tally = items.reduce<Record<string, number>>((acc, i) => {
+      const k = itemKind(i.weapon);
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    return [
+      { id: "all" as const, label: "Все", count: items.length },
+      ...(Object.keys(ITEM_KIND_LABEL) as ItemKind[])
+        .filter((k) => (tally[k] ?? 0) > 0)
+        .map((k) => ({ id: k, label: ITEM_KIND_LABEL[k], count: tally[k] })),
+    ];
+  }, [items]);
 
   const selectedValue = items
     .filter((i) => selected.includes(i.id))
@@ -135,19 +161,23 @@ export function InventoryGrid() {
         />
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <Tabs items={tabs} value={rarity} onChange={setRarity} className="lg:flex-1" />
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <Tabs items={kindTabs} value={kind} onChange={setKind} className="lg:flex-1" />
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as Sort)}
           aria-label="Сортировка"
-          className="h-11 cursor-pointer appearance-none rounded-xl border border-white/[0.09] bg-white/[0.04] px-4 text-[13px] text-white outline-none transition focus:border-zev-400/70"
+          className="h-10 cursor-pointer appearance-none rounded-md border border-line bg-white/[0.04] px-4 text-[13px] text-slate-200 shadow-lip outline-none transition hover:border-white/15 focus:border-ice-500/70"
         >
-          <option value="recent" className="bg-surface">Сначала новые</option>
-          <option value="price-desc" className="bg-surface">Сначала дорогие</option>
-          <option value="price-asc" className="bg-surface">Сначала дешёвые</option>
-          <option value="rarity" className="bg-surface">По редкости</option>
+          <option value="recent" className="bg-slab">Сначала новые</option>
+          <option value="price-desc" className="bg-slab">Сначала дорогие</option>
+          <option value="price-asc" className="bg-slab">Сначала дешёвые</option>
+          <option value="rarity" className="bg-slab">По редкости</option>
         </select>
+      </div>
+
+      <div className="mb-5">
+        <Tabs items={tabs} value={rarity} onChange={setRarity} />
       </div>
 
       {loading ? (
@@ -156,17 +186,21 @@ export function InventoryGrid() {
             <ItemCardSkeleton key={i} />
           ))}
         </div>
-      ) : items.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState
           icon={<PackageOpen size={22} />}
-          title={rarity === "all" ? "Инвентарь пуст" : "Нет предметов этой редкости"}
+          title={
+            rarity === "all" && kind === "all"
+              ? "Инвентарь пуст"
+              : "Под фильтры ничего не подошло"
+          }
           description={
-            rarity === "all"
+            rarity === "all" && kind === "all"
               ? "Откройте первый кейс, чтобы получить предмет."
-              : "Попробуйте выбрать другую редкость."
+              : "Снимите один из фильтров — редкость или тип предмета."
           }
           action={
-            rarity === "all" ? (
+            rarity === "all" && kind === "all" ? (
               <Link href="/cases">
                 <Button>Открыть кейсы</Button>
               </Link>
@@ -175,7 +209,7 @@ export function InventoryGrid() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {items.map((item) => (
+          {visible.map((item) => (
             <InventoryCard
               key={item.id}
               item={item}
@@ -197,7 +231,7 @@ export function InventoryGrid() {
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
             className="fixed inset-x-3 bottom-[86px] z-[70] lg:inset-x-auto lg:bottom-6 lg:left-1/2 lg:w-[520px] lg:-translate-x-1/2"
           >
-            <div className="glass-strong flex items-center gap-3 rounded-2xl px-4 py-3">
+            <div className="glass-strong flex items-center gap-3 rounded-lg px-4 py-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-semibold text-white">
                   Выбрано {selected.length}

@@ -51,7 +51,7 @@ export function PartnersIntro() {
   return (
     <>
       {/* ───────── hero ───────── */}
-      <section className="relative overflow-hidden rounded-3xl border border-gold-400/20 px-5 py-14 sm:px-10 sm:py-20">
+      <section className="relative overflow-hidden rounded-xl border border-gold-400/20 px-5 py-14 sm:px-10 sm:py-20">
         <span
           aria-hidden
           className="bg-tech-grid pointer-events-none absolute inset-0 opacity-50"
@@ -108,7 +108,7 @@ export function PartnersIntro() {
             transition={{ duration: 0.6, delay: 0.22 }}
             className="mt-8 flex flex-col items-center gap-3"
           >
-            <div className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur">
+            <div className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur">
               <Crown size={16} className="shrink-0 text-gold-300" />
               <p className="text-left text-[13px] leading-snug text-slate-300">
                 Статус выдаётся <strong className="text-white">только вручную</strong>{" "}

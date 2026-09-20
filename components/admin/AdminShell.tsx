@@ -21,7 +21,7 @@ export function AdminShell() {
   const { user, ready } = useSession();
   const [tab, setTab] = useState<Tab>("cases");
 
-  if (!ready) return <Skeleton className="h-[480px] rounded-2xl" />;
+  if (!ready) return <Skeleton className="h-[480px] rounded-lg" />;
 
   // The UI hides itself for non-owners, and every admin endpoint
   // independently enforces the same rule server-side.
