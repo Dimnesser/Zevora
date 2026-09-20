@@ -1,19 +1,19 @@
 "use client";
 
-import type { Rarity } from "@/types";
-import { RARITY } from "@/lib/rarity";
+import type { Rarity } from "@/lib/client/api";
 import { cn } from "@/lib/utils";
 
+/**
+ * Rarity chip. Colours come from the database, so a rarity the owner
+ * added in the admin panel renders exactly like a built-in one.
+ */
 export function RarityTag({
   rarity,
   className,
-  compact = false,
 }: {
   rarity: Rarity;
   className?: string;
-  compact?: boolean;
 }) {
-  const meta = RARITY[rarity];
   return (
     <span
       className={cn(
@@ -21,29 +21,28 @@ export function RarityTag({
         className,
       )}
       style={{
-        color: meta.color,
-        borderColor: `${meta.color}40`,
-        background: `${meta.color}14`,
+        color: rarity.color,
+        borderColor: `${rarity.color}40`,
+        background: `${rarity.color}14`,
       }}
     >
       <span
         className="h-1.5 w-1.5 rounded-full"
-        style={{ background: meta.color, boxShadow: `0 0 6px ${meta.color}` }}
+        style={{ background: rarity.color, boxShadow: `0 0 6px ${rarity.color}` }}
       />
-      {compact ? meta.short : meta.label}
+      {rarity.name}
     </span>
   );
 }
 
 /** Thin coloured bar at the bottom of an item card — the CS2 convention. */
-export function RarityBar({ rarity }: { rarity: Rarity }) {
-  const meta = RARITY[rarity];
+export function RarityBar({ color }: { color: string }) {
   return (
     <span
       className="absolute inset-x-0 bottom-0 h-[3px]"
       style={{
-        background: `linear-gradient(90deg, transparent, ${meta.color}, transparent)`,
-        boxShadow: `0 0 14px ${meta.glow}`,
+        background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+        boxShadow: `0 0 14px ${color}8C`,
       }}
     />
   );

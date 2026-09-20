@@ -12,11 +12,11 @@ import {
   Ticket,
   TrendingUp,
 } from "lucide-react";
-import type { PartnerProfile } from "@/types";
+import type { SessionUser } from "@/lib/client/api";
 import { TIERS } from "@/data/partners";
-import { conversion, refLinkFor } from "@/lib/partner";
 import { useCopy } from "@/hooks/useCopy";
-import { CASES } from "@/data/cases";
+import { api } from "@/lib/client/api";
+import { useResource } from "@/hooks/useResource";
 import { CaseCard } from "@/components/cases/CaseCard";
 import { PartnerChart } from "@/components/partners/PartnerChart";
 import { PerksGrid } from "@/components/partners/PerksGrid";
@@ -24,7 +24,7 @@ import { TiersSection } from "@/components/partners/TiersSection";
 import { PartnerBadge } from "@/components/partners/PartnerBadge";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/Section";
-import { formatMoney, formatNumber, formatPercent, formatDate } from "@/lib/format";
+import { formatMinor, formatNumber, formatPercent, formatDate } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
 import { cn } from "@/lib/utils";
 
@@ -32,17 +32,20 @@ import { cn } from "@/lib/utils";
  * The member view. Opens with a short vault animation the first time it is
  * mounted in a session, then settles into the dashboard.
  */
+type Partner = NonNullable<SessionUser["partner"]>;
+
 export function PartnerLounge({
   partner,
   username,
 }: {
-  partner: PartnerProfile;
+  partner: Partner;
   username: string;
 }) {
-  const meta = TIERS[partner.tier];
+  const meta = TIERS[partner.tier as keyof typeof TIERS];
   const [c1, c2] = meta.colors;
   const [entering, setEntering] = useState(true);
-  const link = refLinkFor(partner.refCode);
+  const link = `https://zevora.example/?ref=${partner.ref_code ?? username}`;
+  const promoCode = partner.promo_code ?? "—";
   const { copied: linkCopied, copy: copyLink } = useCopy();
   const { copied: promoCopied, copy: copyPromo } = useCopy();
 
@@ -51,15 +54,27 @@ export function PartnerLounge({
     return () => clearTimeout(t);
   }, []);
 
-  const partnerCases = CASES.filter((c) => c.partnerOnly);
+  // Partner cases come from the API, which only returns them once the
+  // server has confirmed the account holds the status.
+  const { data: catalogue } = useResource(() => api.cases(), []);
+  const { data: activity } = useResource(() => api.stats(), []);
+  const partnerCases = (catalogue?.cases ?? []).filter((c) => c.partner_only);
 
+  // Every figure here comes from this account's real activity in the
+  // database. Referral attribution is not implemented yet, so no
+  // click-through or signup numbers are invented to fill the row.
   const stats = [
-    { label: "Переходы", value: formatNumber(partner.stats.clicks) },
-    { label: "Регистрации", value: formatNumber(partner.stats.signups) },
-    { label: "Активные", value: formatNumber(partner.stats.active) },
-    { label: "Доход", value: formatMoney(partner.stats.revenue) },
-    { label: "Бонусы", value: formatMoney(partner.stats.bonusPool) },
-    { label: "Конверсия", value: formatPercent(conversion(partner.stats)) },
+    { label: "Открытий", value: formatNumber(activity?.stats.cases_opened ?? 0) },
+    { label: "Потрачено", value: formatMinor(activity?.stats.spent_minor ?? 0) },
+    { label: "Выиграно", value: formatMinor(activity?.stats.won_minor ?? 0) },
+    { label: "Лучший дроп", value: formatMinor(activity?.stats.best_minor ?? 0) },
+    { label: "Предметов", value: formatNumber(activity?.stats.inventory_items ?? 0) },
+    {
+      label: "Возврат",
+      value: activity && activity.stats.spent_minor > 0
+        ? formatPercent(activity.stats.won_minor / activity.stats.spent_minor, 0)
+        : "—",
+    },
   ];
 
   return (
@@ -165,9 +180,9 @@ export function PartnerLounge({
               </span>
             </h1>
             <div className="mt-3 flex flex-wrap items-center gap-2.5">
-              <PartnerBadge tier={partner.tier} size="md" />
+              <PartnerBadge tier={partner.tier as keyof typeof TIERS} size="md" />
               <span className="text-[12.5px] text-slate-400">
-                в программе с {formatDate(partner.since)} · доля{" "}
+                в программе{partner.since ? ` с ${formatDate(partner.since)}` : ""} · доля{" "}
                 {formatPercent(meta.share, 0)}
               </span>
             </div>
@@ -219,12 +234,12 @@ export function PartnerLounge({
               <span className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/[0.08] bg-void/50 px-3 py-2.5">
                 <Ticket size={14} className="shrink-0 text-slate-500" />
                 <span className="min-w-0 flex-1 truncate font-mono text-[14px] font-bold tracking-[0.12em] text-white">
-                  {partner.promo}
+                  {promoCode}
                 </span>
               </span>
               <button
                 onClick={async () => {
-                  if (await copyPromo(partner.promo)) {
+                  if (await copyPromo(promoCode)) {
                     toast.success("Промокод скопирован");
                   }
                 }}
@@ -267,14 +282,14 @@ export function PartnerLounge({
       <Card className="mt-4 p-5 sm:p-6">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[16px] font-semibold text-white">
-            Статистика за 14 дней
+            Ваша активность за 14 дней
           </h2>
           <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
             <TrendingUp size={13} style={{ color: c1 }} />
             обновляется раз в час
           </span>
         </div>
-        <PartnerChart series={partner.series} />
+        {activity && <PartnerChart series={activity.series} />}
       </Card>
 
       {/* ───────── partner cases ───────── */}
@@ -286,7 +301,7 @@ export function PartnerLounge({
         />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {partnerCases.map((c) => (
-            <CaseCard key={c.id} def={c} />
+            <CaseCard key={c.id} kase={c} />
           ))}
         </div>
       </section>
@@ -308,7 +323,7 @@ export function PartnerLounge({
           title="Лестница партнёрства"
           description="Уровень назначается вручную владельцем Zevora. Автоматического повышения нет."
         />
-        <TiersSection current={partner.tier} />
+        <TiersSection current={partner.tier as keyof typeof TIERS} />
       </section>
     </>
   );

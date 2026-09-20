@@ -3,17 +3,15 @@
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ShieldCheck, Sparkles, Zap } from "lucide-react";
-import { CaseArt } from "@/components/art/CaseArt";
-import { SkinArt } from "@/components/art/SkinArt";
-import { getCase } from "@/data/cases";
-import { getSkin } from "@/data/skins";
-import { RARITY } from "@/lib/rarity";
-import { formatMoney } from "@/lib/format";
+import { CaseImage } from "@/components/art/CaseImage";
+import { SkinImage } from "@/components/art/SkinImage";
+import { api, type CaseItem, type CaseSummary } from "@/lib/client/api";
+import { useResource } from "@/hooks/useResource";
+import { formatMinor } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
-const HERO_CASE = "knife-vault";
-/** The three showcase skins floating around the case. */
-const SHOWCASE = ["kar-nebula", "awp-voidrunner", "ak-emberlord"];
+/** The case whose contents headline the hero scene. */
+const HERO_CASE = "blade-forge";
 
 const TRUST = [
   { icon: ShieldCheck, label: "Прозрачные шансы" },
@@ -23,7 +21,15 @@ const TRUST = [
 
 export function Hero() {
   const reduce = useReducedMotion();
-  const kase = getCase(HERO_CASE)!;
+
+  // The scene is built from the live catalogue, so editing the case in
+  // the admin panel changes what the landing page shows.
+  const { data } = useResource(() => api.caseDetail(HERO_CASE).catch(() => null), []);
+  const kase: CaseSummary | null = data?.case ?? null;
+  const showcase: CaseItem[] = (data?.items ?? [])
+    .slice()
+    .sort((a, b) => b.price_minor - a.price_minor)
+    .slice(0, 3);
 
   return (
     <section className="relative overflow-hidden">
@@ -60,7 +66,7 @@ export function Hero() {
               CS2
             </span>
             <span className="text-[12.5px] text-slate-300">
-              14 кейсов · 48 предметов · честный рандом
+              Реальные скины · серверный розыгрыш · открытые шансы
             </span>
           </motion.div>
 
@@ -161,13 +167,17 @@ export function Hero() {
             animate={reduce ? undefined : { y: [-10, 10, -10] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
           >
-            <CaseArt def={kase} />
+            {kase && (
+              <CaseImage
+                imageUrl={kase.image_url}
+                art={kase.art}
+                label={kase.name}
+              />
+            )}
           </motion.div>
 
-          {/* floating skins */}
-          {SHOWCASE.map((id, i) => {
-            const skin = getSkin(id);
-            const rarity = RARITY[skin.rarity];
+          {/* floating skins, pulled from the live drop table */}
+          {showcase.map((item, i) => {
             const positions = [
               "left-[-2%] top-[10%]",
               "right-[-4%] top-[38%]",
@@ -175,7 +185,7 @@ export function Hero() {
             ];
             return (
               <motion.div
-                key={id}
+                key={item.skin_id}
                 className={`absolute w-[46%] sm:w-[44%] ${positions[i]}`}
                 initial={{ opacity: 0, y: 26, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -194,20 +204,24 @@ export function Hero() {
                     delay: i * 0.5,
                   }}
                   className="glass-strong rounded-2xl p-2.5"
-                  style={{ borderColor: `${rarity.color}45` }}
+                  style={{ borderColor: `${item.rarity.color}45` }}
                 >
                   <div className="h-[52px]">
-                    <SkinArt skin={skin} />
+                    <SkinImage
+                      imageUrl={item.image_url}
+                      art={item.art}
+                      label={item.market_name}
+                    />
                   </div>
                   <div className="mt-1.5 flex items-center justify-between gap-2 px-0.5">
                     <span
                       className="truncate text-[10.5px] font-bold uppercase tracking-wide"
-                      style={{ color: rarity.color }}
+                      style={{ color: item.rarity.color }}
                     >
-                      {skin.name}
+                      {item.finish}
                     </span>
                     <span className="shrink-0 text-[10.5px] font-semibold tabular-nums text-white">
-                      {formatMoney(skin.price)}
+                      {formatMinor(item.price_minor)}
                     </span>
                   </div>
                 </motion.div>

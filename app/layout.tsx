@@ -5,6 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/Toaster";
+import { SessionProvider } from "@/lib/client/session";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -54,12 +55,14 @@ export default function RootLayout({
   return (
     <html lang="ru" className={`${inter.variable} ${grotesk.variable}`}>
       <body className="min-h-screen">
-        <Navbar />
-        {/* Top padding clears the fixed navbar; bottom clears the mobile tabs. */}
-        <main className="pb-28 pt-16 sm:pt-[68px] lg:pb-0">{children}</main>
-        <Footer />
-        <MobileNav />
-        <Toaster />
+        <SessionProvider>
+          <Navbar />
+          {/* Top padding clears the fixed navbar; bottom clears the mobile tabs. */}
+          <main className="pb-28 pt-16 sm:pt-[68px] lg:pb-0">{children}</main>
+          <Footer />
+          <MobileNav />
+          <Toaster />
+        </SessionProvider>
       </body>
     </html>
   );

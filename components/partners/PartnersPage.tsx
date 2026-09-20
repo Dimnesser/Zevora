@@ -1,7 +1,6 @@
 "use client";
 
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
+import { useSession } from "@/lib/client/session";
 import { PartnerLounge } from "@/components/partners/PartnerLounge";
 import { PartnersIntro } from "@/components/partners/PartnersIntro";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -11,11 +10,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
  * Partner status lives on the user record and is set by the owner only.
  */
 export function PartnersPage() {
-  const hydrated = useHydrated();
-  const partner = useStore((s) => s.user.partner);
-  const username = useStore((s) => s.user.username);
+  const { user, ready } = useSession();
+  const partner = user?.partner ?? null;
 
-  if (!hydrated) {
+  if (!ready) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-[320px] w-full rounded-3xl" />
@@ -28,8 +26,8 @@ export function PartnersPage() {
     );
   }
 
-  return partner ? (
-    <PartnerLounge partner={partner} username={username} />
+  return partner && user ? (
+    <PartnerLounge partner={partner} username={user.username} />
   ) : (
     <PartnersIntro />
   );

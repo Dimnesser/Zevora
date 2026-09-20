@@ -6,6 +6,16 @@ const nf2 = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 2,
 });
 
+/**
+ * Formats an integer minor-unit amount (копейки) for display.
+ * Fractions are only shown when the amount is not a whole rouble.
+ */
+export function formatMinor(minor: number, forceDecimals = false): string {
+  const value = (Number.isFinite(minor) ? minor : 0) / 100;
+  const needsDecimals = forceDecimals || Math.abs(value % 1) > 0.001;
+  return `${needsDecimals ? nf2.format(value) : nf0.format(Math.round(value))} ₽`;
+}
+
 export function formatMoney(value: number, decimals = false): string {
   const v = Number.isFinite(value) ? value : 0;
   return `${decimals ? nf2.format(v) : nf0.format(Math.round(v))} ₽`;

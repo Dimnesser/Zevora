@@ -2,101 +2,93 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Backpack, Coins, PackageOpen, Send, TrendingUp } from "lucide-react";
+import { Backpack, Coins, LogIn, PackageOpen, Send, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import type { Rarity } from "@/types";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
-import { getSkin } from "@/data/skins";
-import { RARITY, RARITY_ORDER } from "@/lib/rarity";
+import { ApiRequestError, api, type InventoryItem } from "@/lib/client/api";
+import { useResource } from "@/hooks/useResource";
+import { useSession } from "@/lib/client/session";
 import { ItemCard } from "@/components/items/ItemCard";
 import { ItemCardSkeleton } from "@/components/ui/Skeleton";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/Modal";
-import { formatMoney, timeAgo } from "@/lib/format";
+import { formatMinor, timeAgo } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
+import { RARITY_ORDER } from "@/lib/client/display";
 
-type Filter = Rarity | "all";
-type Sort = "recent" | "price-desc" | "price-asc";
+type Sort = "recent" | "price-desc" | "price-asc" | "rarity";
+
+const RARITY_LABEL: Record<string, string> = {
+  consumer: "Consumer",
+  industrial: "Industrial",
+  milspec: "Mil-Spec",
+  restricted: "Restricted",
+  classified: "Classified",
+  covert: "Covert",
+  special: "Special",
+};
 
 export function InventoryGrid() {
-  const hydrated = useHydrated();
-  const inventory = useStore((s) => s.inventory);
-  const sellItem = useStore((s) => s.sellItem);
-  const sellMany = useStore((s) => s.sellMany);
-  const withdrawItem = useStore((s) => s.withdrawItem);
-
-  const [filter, setFilter] = useState<Filter>("all");
+  const { user, ready, setBalance } = useSession();
+  const [rarity, setRarity] = useState<string>("all");
   const [sort, setSort] = useState<Sort>("recent");
-  const [selected, setSelected] = useState<string[]>([]);
-  const [confirmSellAll, setConfirmSellAll] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [confirmSell, setConfirmSell] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const items = hydrated ? inventory : [];
+  const { data, loading, reload } = useResource(
+    () => (user ? api.inventory({ sort, rarity }) : Promise.resolve(null)),
+    [user?.id, sort, rarity],
+  );
 
-  const counts = useMemo(() => {
-    const map: Record<string, number> = { all: items.length };
-    for (const r of RARITY_ORDER) map[r] = 0;
-    for (const i of items) map[getSkin(i.skinId).rarity]++;
-    return map;
-  }, [items]);
+  const items = data?.items ?? [];
+  const counts = data?.counts ?? {};
 
-  const filtered = useMemo(() => {
-    let list = items.filter(
-      (i) => filter === "all" || getSkin(i.skinId).rarity === filter,
-    );
-    if (sort === "recent") list = [...list].sort((a, b) => b.acquiredAt - a.acquiredAt);
-    if (sort === "price-desc") list = [...list].sort((a, b) => b.price - a.price);
-    if (sort === "price-asc") list = [...list].sort((a, b) => a.price - b.price);
-    return list;
-  }, [items, filter, sort]);
+  const tabs: TabItem<string>[] = useMemo(
+    () => [
+      { id: "all", label: "Все", count: data?.total },
+      ...RARITY_ORDER.map((slug) => ({
+        id: slug,
+        label: RARITY_LABEL[slug] ?? slug,
+        count: counts[slug] ?? 0,
+        color: items.find((i) => i.rarity.slug === slug)?.rarity.color,
+      })),
+    ],
+    [data?.total, counts, items],
+  );
 
-  const totalValue = items
-    .filter((i) => i.status === "owned")
-    .reduce((s, i) => s + i.price, 0);
   const selectedValue = items
-    .filter((i) => selected.includes(i.uid))
-    .reduce((s, i) => s + i.price, 0);
+    .filter((i) => selected.includes(i.id))
+    .reduce((s, i) => s + i.price_minor, 0);
 
-  const tabs: TabItem<Filter>[] = [
-    { id: "all", label: "Все", count: counts.all },
-    ...RARITY_ORDER.map((r) => ({
-      id: r as Filter,
-      label: RARITY[r].label,
-      count: counts[r],
-      color: RARITY[r].color,
-    })),
-  ];
-
-  const toggle = (uid: string) =>
+  const toggle = (id: number) =>
     setSelected((prev) =>
-      prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid],
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
 
-  const handleSell = (uid: string) => {
-    const gained = sellItem(uid);
-    setSelected((p) => p.filter((u) => u !== uid));
-    if (gained > 0) {
-      toast.success("Предмет продан", `На баланс зачислено ${formatMoney(gained)}`);
+  const sell = async (ids: number[]) => {
+    setBusy(true);
+    try {
+      const res = await api.sell(ids);
+      setBalance(res.balance_minor);
+      setSelected((prev) => prev.filter((id) => !ids.includes(id)));
+      toast.success(
+        res.sold === 1 ? "Предмет продан" : `Продано ${res.sold} предм.`,
+        `На баланс зачислено ${formatMinor(res.amount_minor)}`,
+      );
+      reload();
+    } catch (err) {
+      toast.error(
+        "Не удалось продать",
+        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
+      );
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleWithdraw = (uid: string) => {
-    withdrawItem(uid);
-    toast.success(
-      "Заявка на вывод создана",
-      "Предмет уйдёт в Steam в течение 5 минут",
-    );
-  };
-
-  const sellSelected = () => {
-    const total = sellMany(selected);
-    setSelected([]);
-    toast.success("Продано", `На баланс зачислено ${formatMoney(total)}`);
-  };
-
-  if (!hydrated) {
+  if (!ready) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {Array.from({ length: 10 }).map((_, i) => (
@@ -106,18 +98,32 @@ export function InventoryGrid() {
     );
   }
 
+  if (!user) {
+    return (
+      <EmptyState
+        icon={<LogIn size={22} />}
+        title="Войдите в аккаунт"
+        description="Инвентарь привязан к аккаунту — предметы хранятся на сервере."
+        action={
+          <Link href="/login">
+            <Button>Войти</Button>
+          </Link>
+        }
+      />
+    );
+  }
+
   return (
     <>
-      {/* summary */}
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <SummaryTile
           label="Предметов"
-          value={String(items.length)}
+          value={String(data?.total ?? 0)}
           icon={<Backpack size={16} />}
         />
         <SummaryTile
           label="Общая стоимость"
-          value={formatMoney(totalValue)}
+          value={formatMinor(data?.value_minor ?? 0)}
           icon={<Coins size={16} />}
           accent="#2FD98A"
         />
@@ -130,7 +136,7 @@ export function InventoryGrid() {
       </div>
 
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <Tabs items={tabs} value={filter} onChange={setFilter} className="lg:flex-1" />
+        <Tabs items={tabs} value={rarity} onChange={setRarity} className="lg:flex-1" />
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as Sort)}
@@ -140,20 +146,27 @@ export function InventoryGrid() {
           <option value="recent" className="bg-surface">Сначала новые</option>
           <option value="price-desc" className="bg-surface">Сначала дорогие</option>
           <option value="price-asc" className="bg-surface">Сначала дешёвые</option>
+          <option value="rarity" className="bg-surface">По редкости</option>
         </select>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <ItemCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
         <EmptyState
           icon={<PackageOpen size={22} />}
-          title={items.length === 0 ? "Инвентарь пуст" : "Нет предметов в категории"}
+          title={rarity === "all" ? "Инвентарь пуст" : "Нет предметов этой редкости"}
           description={
-            items.length === 0
+            rarity === "all"
               ? "Откройте первый кейс, чтобы получить предмет."
               : "Попробуйте выбрать другую редкость."
           }
           action={
-            items.length === 0 ? (
+            rarity === "all" ? (
               <Link href="/cases">
                 <Button>Открыть кейсы</Button>
               </Link>
@@ -162,59 +175,19 @@ export function InventoryGrid() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {filtered.map((item) => {
-            const disabled = item.status !== "owned";
-            return (
-              <ItemCard
-                key={item.uid}
-                item={item}
-                selected={selected.includes(item.uid)}
-                onClick={disabled ? undefined : () => toggle(item.uid)}
-                meta={
-                  <span className="truncate text-[11.5px] text-slate-500">
-                    {item.wear} · {timeAgo(item.acquiredAt)}
-                  </span>
-                }
-                footer={
-                  <div className="flex gap-1.5">
-                    <button
-                      disabled={disabled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSell(item.uid);
-                      }}
-                      className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/[0.11] hover:text-white disabled:opacity-40"
-                    >
-                      Продать
-                    </button>
-                    <Link
-                      href="/upgrade"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.11] hover:text-white"
-                      aria-label="Апгрейд"
-                    >
-                      <TrendingUp size={12} />
-                    </Link>
-                    <button
-                      disabled={disabled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleWithdraw(item.uid);
-                      }}
-                      aria-label="Вывести"
-                      className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.11] hover:text-white disabled:opacity-40"
-                    >
-                      <Send size={12} />
-                    </button>
-                  </div>
-                }
-              />
-            );
-          })}
+          {items.map((item) => (
+            <InventoryCard
+              key={item.id}
+              item={item}
+              selected={selected.includes(item.id)}
+              onToggle={() => toggle(item.id)}
+              onSell={() => void sell([item.id])}
+              busy={busy}
+            />
+          ))}
         </div>
       )}
 
-      {/* bulk action bar */}
       <AnimatePresence>
         {selected.length > 0 && (
           <motion.div
@@ -230,17 +203,13 @@ export function InventoryGrid() {
                   Выбрано {selected.length}
                 </p>
                 <p className="text-[12px] text-slate-400">
-                  на сумму {formatMoney(selectedValue)}
+                  на сумму {formatMinor(selectedValue)}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelected([])}
-              >
+              <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
                 Снять
               </Button>
-              <Button size="sm" onClick={() => setConfirmSellAll(true)}>
+              <Button size="sm" onClick={() => setConfirmSell(true)} loading={busy}>
                 Продать
               </Button>
             </div>
@@ -249,14 +218,87 @@ export function InventoryGrid() {
       </AnimatePresence>
 
       <ConfirmDialog
-        open={confirmSellAll}
-        onClose={() => setConfirmSellAll(false)}
-        onConfirm={sellSelected}
+        open={confirmSell}
+        onClose={() => setConfirmSell(false)}
+        onConfirm={() => void sell(selected)}
         title={`Продать ${selected.length} предм.?`}
-        description={`На баланс будет зачислено ${formatMoney(selectedValue)}. Отменить продажу нельзя.`}
+        description={`На баланс будет зачислено ${formatMinor(selectedValue)}. Отменить продажу нельзя.`}
         confirmLabel="Продать"
       />
     </>
+  );
+}
+
+function InventoryCard({
+  item,
+  selected,
+  onToggle,
+  onSell,
+  busy,
+}: {
+  item: InventoryItem;
+  selected: boolean;
+  onToggle: () => void;
+  onSell: () => void;
+  busy: boolean;
+}) {
+  const locked = item.status !== "owned";
+
+  return (
+    <ItemCard
+      skin={item}
+      selected={selected}
+      onClick={locked ? undefined : onToggle}
+      badge={
+        item.stattrak ? (
+          <span className="rounded-md border border-gold-400/40 bg-gold-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gold-300">
+            StatTrak™
+          </span>
+        ) : locked ? (
+          <span className="rounded-md border border-aqua-400/40 bg-aqua-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-aqua-300">
+            Вывод
+          </span>
+        ) : undefined
+      }
+      meta={
+        <span className="block truncate text-[11.5px] text-slate-500">
+          {item.wear} · {item.float_value.toFixed(3)}
+          <br />
+          {item.source_case ? item.source_case.name : "Магазин"} ·{" "}
+          {timeAgo(item.acquired_at)}
+        </span>
+      }
+      footer={
+        <div className="flex gap-1.5">
+          <button
+            disabled={locked || busy}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSell();
+            }}
+            className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/[0.11] hover:text-white disabled:opacity-40"
+          >
+            Продать
+          </button>
+          <Link
+            href="/upgrade"
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.11] hover:text-white"
+            aria-label="Апгрейд"
+          >
+            <TrendingUp size={12} />
+          </Link>
+          <Link
+            href="/wallet?tab=withdraw"
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.11] hover:text-white"
+            aria-label="Вывести"
+          >
+            <Send size={12} />
+          </Link>
+        </div>
+      }
+    />
   );
 }
 

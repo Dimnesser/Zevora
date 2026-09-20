@@ -1,21 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Gauge, Play, Wallet } from "lucide-react";
+import { Gauge, LogIn, Play, Volume2, VolumeX, Wallet } from "lucide-react";
 import Link from "next/link";
-import type { CaseDefinition, InventoryItem } from "@/types";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
-import { rollCase } from "@/lib/roll";
-import { getSkin } from "@/data/skins";
-import { RARITY, rarityRank } from "@/lib/rarity";
+import {
+  ApiRequestError,
+  api,
+  newIdempotencyKey,
+  type CaseItem,
+  type CaseSummary,
+  type OpenResult,
+} from "@/lib/client/api";
+import { useSession } from "@/lib/client/session";
 import { Roulette } from "@/components/cases/Roulette";
 import { DropReveal } from "@/components/cases/DropReveal";
 import { Button } from "@/components/ui/Button";
-import { formatMoney } from "@/lib/format";
+import { formatMinor } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
-import { uid, cn } from "@/lib/utils";
+import { isMuted, playClick, playFail, playWin, setMuted } from "@/lib/client/sound";
+import { rarityRank } from "@/lib/client/display";
+import { cn } from "@/lib/utils";
 
 const COUNTS = [1, 2, 3, 4] as const;
 type Count = (typeof COUNTS)[number];
@@ -25,118 +30,159 @@ const FAST_MS = 2200;
 
 type Phase = "idle" | "spinning" | "result";
 
-/** Full open flow: bet size, spin, reveal, keep or sell. */
-export function CaseOpener({ def }: { def: CaseDefinition }) {
-  const hydrated = useHydrated();
-  const balance = useStore((s) => s.user.balance);
-  const isPartner = useStore((s) => Boolean(s.user.partner));
-  const chargeCase = useStore((s) => s.chargeCase);
-  const commitDrop = useStore((s) => s.commitDrop);
-  const sellMany = useStore((s) => s.sellMany);
-  const pushLiveDrop = useStore((s) => s.pushLiveDrop);
-  const username = useStore((s) => s.user.username);
+/**
+ * Case opening flow.
+ *
+ * The order matters: the server is asked first and returns the finished
+ * outcome, then the reel animates toward it. The animation has no say in
+ * what was won, and a client that skips it still cannot change the drop.
+ */
+export function CaseOpener({
+  kase,
+  items,
+}: {
+  kase: CaseSummary;
+  items: CaseItem[];
+}) {
+  const { user, refresh, setBalance } = useSession();
 
   const [count, setCount] = useState<Count>(1);
   const [fast, setFast] = useState(false);
+  const [muted, setMutedState] = useState(() => isMuted());
   const [phase, setPhase] = useState<Phase>("idle");
-  const [winners, setWinners] = useState<(string | null)[]>([null]);
-  const [drops, setDrops] = useState<InventoryItem[]>([]);
-  const [finished, setFinished] = useState(0);
+  const [results, setResults] = useState<OpenResult[]>([]);
+  const [pending, setPending] = useState<(OpenResult | null)[]>([null]);
+  const [busy, setBusy] = useState(false);
+  const [selling, setSelling] = useState(false);
+  const finishedLanes = useRef(0);
 
-  const unitPrice = def.partnerOnly ? 0 : def.price;
+  const unitPrice = kase.price_minor;
   const totalPrice = unitPrice * count;
-  const canAfford = !hydrated || balance >= totalPrice;
-  const locked = Boolean(def.partnerOnly) && hydrated && !isPartner;
+  const balance = user?.balance_minor ?? 0;
+  const canAfford = balance >= totalPrice;
   const duration = fast ? FAST_MS : SPIN_MS;
 
-  const handleFinished = useCallback(() => {
-    setFinished((n) => n + 1);
-  }, []);
-
-  // When every lane has settled, commit the drops and show the result.
-  const onAllSettled = useCallback(
-    (ids: string[]) => {
-      const committed = ids.map((id) => commitDrop(id, def));
-      setDrops(committed);
+  const revealAll = useCallback(
+    (opened: OpenResult[]) => {
+      setResults(opened);
       setPhase("result");
 
-      const best = committed.reduce((a, b) => (b.price > a.price ? b : a));
-      const bestSkin = getSkin(best.skinId);
-      if (rarityRank(bestSkin.rarity) >= 3) {
+      const best = opened.reduce(
+        (a, b) => (b.item.price_minor > a.item.price_minor ? b : a),
+        opened[0],
+      );
+      const rank = rarityRank(best.item.rarity.slug);
+      playWin(rank);
+      if (rank >= 5) {
         toast.rare(
-          `${bestSkin.weapon} | ${bestSkin.name}`,
-          `${RARITY[bestSkin.rarity].label} · ${formatMoney(best.price)}`,
+          best.item.market_name,
+          `${best.item.rarity.name} · ${formatMinor(best.item.price_minor)}`,
         );
       }
-      // Surface the user's own drop in the live feed too.
-      pushLiveDrop({
-        id: uid("live"),
-        username,
-        avatarSeed: username,
-        skinId: best.skinId,
-        caseSlug: def.slug,
-        at: Date.now(),
-      });
     },
-    [commitDrop, def, pushLiveDrop, username],
+    [],
   );
 
-  // Advance to the result once every lane has reported in.
-  useEffect(() => {
-    if (phase !== "spinning" || finished < count) return;
-    const ids = winners.filter((w): w is string => Boolean(w));
-    if (ids.length !== count) return;
-    onAllSettled(ids);
-  }, [phase, finished, count, winners, onAllSettled]);
+  const onLaneFinished = useCallback(() => {
+    finishedLanes.current += 1;
+  }, []);
 
-  const start = () => {
-    if (locked) {
-      toast.error("Кейс закрыт", "Доступен только партнёрам Zevora");
+  const start = async () => {
+    if (busy) return;
+    if (!user) {
+      toast.error("Требуется вход", "Войдите в аккаунт, чтобы открывать кейсы");
       return;
     }
     if (!canAfford) {
       toast.error("Недостаточно средств", "Пополните баланс, чтобы открыть кейс");
       return;
     }
-    // Charge each lane separately so a partial failure is impossible.
-    for (let i = 0; i < count; i++) {
-      if (!chargeCase(def)) {
-        toast.error("Недостаточно средств");
-        return;
+
+    setBusy(true);
+    playClick();
+
+    try {
+      // Every lane is a separate server call with its own idempotency
+      // key, so a retry replays that lane instead of charging again.
+      const opened = await Promise.all(
+        Array.from({ length: count }, () =>
+          api.openCase(kase.slug, newIdempotencyKey()),
+        ),
+      );
+
+      // Balance comes back from the server; the client never computes it.
+      setBalance(opened[opened.length - 1].balance_minor);
+
+      finishedLanes.current = 0;
+      setResults([]);
+      setPending(opened);
+      setPhase("spinning");
+
+      // The reel owns the timing; this is the outer bound for all lanes.
+      const longest = duration + (count - 1) * 220 + 120;
+      window.setTimeout(() => revealAll(opened), longest);
+    } catch (err) {
+      playFail();
+      const message =
+        err instanceof ApiRequestError ? err.message : "Не удалось открыть кейс";
+      toast.error("Ошибка", message);
+      if (err instanceof ApiRequestError && err.status === 401) {
+        await refresh();
       }
+      setPhase("idle");
+    } finally {
+      setBusy(false);
     }
-    const rolled = Array.from({ length: count }, () => rollCase(def));
-    setDrops([]);
-    setFinished(0);
-    setWinners(rolled);
-    setPhase("spinning");
   };
 
   const reset = () => {
     setPhase("idle");
-    setWinners(Array.from({ length: count }, () => null));
-    setFinished(0);
-    setDrops([]);
+    setResults([]);
+    setPending(Array.from({ length: count }, () => null));
+    finishedLanes.current = 0;
   };
 
-  const keep = () => {
+  const keep = async () => {
     toast.success(
-      drops.length > 1 ? `${drops.length} предмета в инвентаре` : "Предмет в инвентаре",
+      results.length > 1
+        ? `${results.length} предмета в инвентаре`
+        : "Предмет в инвентаре",
       "Найдёте его на странице «Инвентарь»",
     );
     reset();
+    await refresh();
   };
 
-  const sell = () => {
-    const total = sellMany(drops.map((d) => d.uid));
-    toast.success("Продано", `На баланс зачислено ${formatMoney(total)}`);
-    reset();
+  const sell = async () => {
+    setSelling(true);
+    try {
+      const ids = results.map((r) => r.item.inventory_id);
+      const res = await api.sell(ids);
+      setBalance(res.balance_minor);
+      toast.success("Продано", `На баланс зачислено ${formatMinor(res.amount_minor)}`);
+      reset();
+    } catch (err) {
+      toast.error(
+        "Не удалось продать",
+        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
+      );
+    } finally {
+      setSelling(false);
+    }
   };
 
   const changeCount = (n: Count) => {
-    if (phase === "spinning") return;
+    if (phase === "spinning" || busy) return;
     setCount(n);
-    setWinners(Array.from({ length: n }, () => null));
+    setPending(Array.from({ length: n }, () => null));
+    playClick();
+  };
+
+  const toggleSound = () => {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+    if (!next) playClick();
   };
 
   return (
@@ -151,15 +197,15 @@ export function CaseOpener({ def }: { def: CaseDefinition }) {
             className="py-2"
           >
             <DropReveal
-              items={drops}
+              results={results}
               onKeep={keep}
               onSell={sell}
+              selling={selling}
               onAgain={() => {
                 reset();
-                // Let the strip reset before charging again.
-                setTimeout(start, 60);
+                window.setTimeout(() => void start(), 80);
               }}
-              againLabel={`Открыть ещё · ${formatMoney(totalPrice)}`}
+              againLabel={`Открыть ещё · ${formatMinor(totalPrice)}`}
               canAfford={balance >= totalPrice}
             />
           </motion.div>
@@ -173,13 +219,13 @@ export function CaseOpener({ def }: { def: CaseDefinition }) {
           >
             {Array.from({ length: count }).map((_, lane) => (
               <Roulette
-                key={`${def.id}-${lane}-${count}`}
-                def={def}
+                key={`${kase.slug}-${lane}-${count}`}
+                items={items}
                 lane={lane}
-                winnerSkinId={phase === "spinning" ? winners[lane] ?? null : null}
+                result={phase === "spinning" ? (pending[lane]?.item ?? null) : null}
                 spinning={phase === "spinning"}
                 durationMs={duration + lane * 220}
-                onFinished={handleFinished}
+                onFinished={onLaneFinished}
               />
             ))}
           </motion.div>
@@ -188,7 +234,6 @@ export function CaseOpener({ def }: { def: CaseDefinition }) {
 
       {phase !== "result" && (
         <div className="mt-5 flex flex-col gap-4">
-          {/* lane count + fast toggle */}
           <div className="flex flex-wrap items-center justify-center gap-2.5">
             <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
               {COUNTS.map((n) => (
@@ -223,14 +268,21 @@ export function CaseOpener({ def }: { def: CaseDefinition }) {
               <Gauge size={15} />
               Быстрое открытие
             </button>
+
+            <button
+              onClick={toggleSound}
+              aria-label={muted ? "Включить звук" : "Выключить звук"}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-400 transition hover:text-white"
+            >
+              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
           </div>
 
-          {/* main action */}
           <div className="mx-auto w-full max-w-md">
-            {locked ? (
-              <Link href="/partners">
-                <Button variant="gold" size="xl" fullWidth>
-                  Доступно только партнёрам
+            {!user ? (
+              <Link href="/login">
+                <Button size="xl" fullWidth iconLeft={<LogIn size={17} />}>
+                  Войдите, чтобы открыть
                 </Button>
               </Link>
             ) : !canAfford ? (
@@ -248,20 +300,22 @@ export function CaseOpener({ def }: { def: CaseDefinition }) {
               <Button
                 size="xl"
                 fullWidth
-                onClick={start}
-                loading={phase === "spinning"}
-                iconLeft={phase === "spinning" ? undefined : <Play size={16} />}
+                onClick={() => void start()}
+                loading={phase === "spinning" || busy}
+                iconLeft={
+                  phase === "spinning" || busy ? undefined : <Play size={16} />
+                }
               >
                 {phase === "spinning"
                   ? "Открываем…"
                   : totalPrice === 0
                     ? `Открыть ×${count} · Бесплатно`
-                    : `Открыть ×${count} · ${formatMoney(totalPrice)}`}
+                    : `Открыть ×${count} · ${formatMinor(totalPrice)}`}
               </Button>
             )}
-            {hydrated && (
+            {user && (
               <p className="mt-2.5 text-center text-[12.5px] text-slate-500">
-                Баланс: {formatMoney(balance)}
+                Баланс: {formatMinor(balance)}
               </p>
             )}
           </div>

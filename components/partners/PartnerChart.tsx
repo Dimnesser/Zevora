@@ -1,32 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PartnerProfile } from "@/types";
-import { formatCompact, formatMoney, formatNumber } from "@/lib/format";
+import type { ActivityPoint } from "@/lib/client/api";
+import { formatCompact, formatMinor, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Metric = "clicks" | "signups" | "revenue";
+type Metric = "opens" | "spent_minor" | "won_minor";
 
-const METRICS: { id: Metric; label: string; color: string }[] = [
-  { id: "clicks", label: "Переходы", color: "#6E71FF" },
-  { id: "signups", label: "Регистрации", color: "#22D3EE" },
-  { id: "revenue", label: "Доход", color: "#F5B841" },
+const METRICS: { id: Metric; label: string; color: string; money: boolean }[] = [
+  { id: "opens", label: "Открытия", color: "#6E71FF", money: false },
+  { id: "spent_minor", label: "Потрачено", color: "#22D3EE", money: true },
+  { id: "won_minor", label: "Выиграно", color: "#F5B841", money: true },
 ];
 
-// The viewBox is sized to the measured container so one user unit is one
-// pixel — labels and strokes stay crisp at any width instead of scaling up.
+// One SVG user unit equals one pixel, so labels never scale up.
 const H = 260;
-const PAD = { top: 18, right: 16, bottom: 30, left: 52 };
+const PAD = { top: 18, right: 16, bottom: 30, left: 56 };
 const PLOT_H = H - PAD.top - PAD.bottom;
 const MIN_W = 320;
 
 /**
- * Single-series area chart over the partner's 14-day window.
- * One metric at a time keeps it to a single y-axis; the legend is the
- * metric switch, so identity is never carried by colour alone.
+ * Single-series activity chart over the last 14 days.
+ *
+ * One metric at a time keeps it to a single y-axis; the metric switch
+ * doubles as the legend, so identity is never carried by colour alone.
  */
-export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
-  const [metric, setMetric] = useState<Metric>("clicks");
+export function PartnerChart({ series }: { series: ActivityPoint[] }) {
+  const [metric, setMetric] = useState<Metric>("opens");
   const [hover, setHover] = useState<number | null>(null);
   const [width, setWidth] = useState(720);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -46,16 +46,14 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
   const PLOT_W = W - PAD.left - PAD.right;
   const active = METRICS.find((m) => m.id === metric)!;
 
-  const { points, max, ticks, peakIndex } = useMemo(() => {
+  const { points, ticks, peakIndex } = useMemo(() => {
     const values = series.map((d) => d[metric]);
     const rawMax = Math.max(...values, 1);
-    // Round the axis top to a friendly number so ticks read cleanly.
     const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
-    const top = Math.ceil(rawMax / magnitude) * magnitude;
+    const top = Math.max(Math.ceil(rawMax / magnitude) * magnitude, 1);
     const step = series.length > 1 ? PLOT_W / (series.length - 1) : 0;
 
     return {
-      max: top,
       peakIndex: values.indexOf(rawMax),
       points: values.map((v, i) => ({
         x: PAD.left + i * step,
@@ -64,22 +62,25 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
       })),
       ticks: [0, 0.25, 0.5, 0.75, 1].map((t) => ({
         y: PAD.top + PLOT_H - t * PLOT_H,
-        label: formatCompact(top * t),
+        label: active.money
+          ? formatCompact(Math.round((top * t) / 100))
+          : formatCompact(top * t),
       })),
     };
-  }, [series, metric, PLOT_W]);
+  }, [series, metric, PLOT_W, active.money]);
+
+  if (points.length === 0) return null;
 
   const line = points.map((p, i) => `${i ? "L" : "M"}${p.x} ${p.y}`).join(" ");
-  const area = `${line} L${points[points.length - 1].x} ${PAD.top + PLOT_H} L${
-    points[0].x
-  } ${PAD.top + PLOT_H} Z`;
+  const area = `${line} L${points[points.length - 1].x} ${PAD.top + PLOT_H} L${points[0].x} ${PAD.top + PLOT_H} Z`;
+  const hovered = hover !== null ? points[hover] : null;
+  const format = (v: number) => (active.money ? formatMinor(v) : formatNumber(v));
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const xRatio = (e.clientX - rect.left) / rect.width;
-    const x = xRatio * W;
+    const x = ((e.clientX - rect.left) / rect.width) * W;
     let nearest = 0;
     let best = Infinity;
     points.forEach((p, i) => {
@@ -92,13 +93,8 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
     setHover(nearest);
   };
 
-  const hovered = hover !== null ? points[hover] : null;
-  const format = (v: number) =>
-    metric === "revenue" ? formatMoney(v) : formatNumber(v);
-
   return (
     <div>
-      {/* metric switch — doubles as the legend for the single series */}
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
         {METRICS.map((m) => (
           <button
@@ -111,10 +107,7 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
                 : "border-white/[0.07] text-slate-400 hover:text-white",
             )}
           >
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: m.color }}
-            />
+            <span className="h-2 w-2 rounded-full" style={{ background: m.color }} />
             {m.label}
           </button>
         ))}
@@ -139,7 +132,6 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
             </linearGradient>
           </defs>
 
-          {/* recessive gridlines + y axis labels */}
           {ticks.map((t, i) => (
             <g key={i}>
               <line
@@ -163,7 +155,6 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
             </g>
           ))}
 
-          {/* area + line */}
           <path d={area} fill={`url(#fill-${metric})`} />
           <path
             d={line}
@@ -175,7 +166,6 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
             style={{ filter: `drop-shadow(0 0 6px ${active.color}55)` }}
           />
 
-          {/* peak marker with a single direct label */}
           <circle
             cx={points[peakIndex].x}
             cy={points[peakIndex].y}
@@ -185,7 +175,6 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
             strokeWidth="2"
           />
 
-          {/* x axis labels, every other day to avoid collisions */}
           {series.map((d, i) =>
             i % (PLOT_W < 460 ? 3 : 2) === 0 ? (
               <text
@@ -201,7 +190,6 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
             ) : null,
           )}
 
-          {/* crosshair */}
           {hovered && (
             <g>
               <line
@@ -226,15 +214,10 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
           )}
         </svg>
 
-        {/* tooltip */}
         {hover !== null && hovered && (
           <div
             className="glass-strong pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-xl px-3 py-2"
-            style={{
-              left: hovered.x,
-              top: hovered.y,
-              marginTop: -10,
-            }}
+            style={{ left: hovered.x, top: hovered.y, marginTop: -10 }}
           >
             <p className="whitespace-nowrap text-[11px] text-slate-400">
               {series[hover].day}
@@ -248,9 +231,7 @@ export function PartnerChart({ series }: { series: PartnerProfile["series"] }) {
 
       <p className="mt-2 text-center text-[11.5px] text-slate-500">
         {active.label} за последние 14 дней · максимум{" "}
-        <span className="font-semibold text-slate-300">
-          {format(points[peakIndex].v)}
-        </span>
+        <span className="font-semibold text-slate-300">{format(points[peakIndex].v)}</span>
       </p>
     </div>
   );

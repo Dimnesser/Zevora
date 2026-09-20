@@ -1,41 +1,42 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Backpack,
   ChevronDown,
   Gift,
+  History,
+  LogIn,
   LogOut,
   Shield,
   Trophy,
   User as UserIcon,
   Wallet,
 } from "lucide-react";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
+import { useSession } from "@/lib/client/session";
 import { Avatar } from "@/components/art/Avatar";
 import { PartnerBadge } from "@/components/partners/PartnerBadge";
 import { TIERS } from "@/data/partners";
-import { formatMoney } from "@/lib/format";
+import { formatMinor } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
-import { ConfirmDialog } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 
 const LINKS = [
   { href: "/profile", label: "Профиль", icon: UserIcon },
   { href: "/inventory", label: "Инвентарь", icon: Backpack },
+  { href: "/history", label: "История открытий", icon: History },
   { href: "/wallet", label: "Баланс и вывод", icon: Wallet },
   { href: "/bonuses", label: "Бонусы", icon: Gift },
   { href: "/leaderboard", label: "Рейтинг", icon: Trophy },
 ];
 
 export function UserMenu() {
-  const user = useStore((s) => s.user);
-  const reset = useStore((s) => s.resetAccount);
-  const hydrated = useHydrated();
+  const router = useRouter();
+  const { user, ready, logout } = useSession();
   const [open, setOpen] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,7 +53,21 @@ export function UserMenu() {
     };
   }, [open]);
 
-  const tier = hydrated ? user.partner?.tier : undefined;
+  if (ready && !user) {
+    return (
+      <Link href="/login">
+        <Button size="sm" iconLeft={<LogIn size={14} />}>
+          Войти
+        </Button>
+      </Link>
+    );
+  }
+
+  if (!user) {
+    return <div className="h-10 w-[104px] rounded-xl bg-white/[0.04]" />;
+  }
+
+  const tier = user.partner?.tier as keyof typeof TIERS | undefined;
   const ring = tier ? TIERS[tier].colors[0] : undefined;
 
   return (
@@ -63,9 +78,9 @@ export function UserMenu() {
         aria-expanded={open}
         className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.045] p-1 pr-1.5 transition hover:border-white/20 hover:bg-white/[0.08] sm:pr-2"
       >
-        <Avatar seed={user.avatarSeed} size={30} ring={ring} />
+        <Avatar seed={user.avatar_seed} size={30} ring={ring} />
         <span className="hidden max-w-[96px] truncate text-[13px] font-medium text-white sm:block">
-          {hydrated ? user.username : "…"}
+          {user.username}
         </span>
         <ChevronDown
           size={14}
@@ -86,13 +101,11 @@ export function UserMenu() {
             className="glass-strong absolute right-0 z-50 mt-2 w-[268px] overflow-hidden rounded-2xl p-1.5"
           >
             <div className="flex items-center gap-3 px-3 py-3">
-              <Avatar seed={user.avatarSeed} size={42} ring={ring} />
+              <Avatar seed={user.avatar_seed} size={42} ring={ring} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-white">
-                  {user.username}
-                </p>
+                <p className="truncate text-sm font-semibold text-white">{user.username}</p>
                 <p className="text-[12px] text-slate-400">
-                  {formatMoney(user.balance)} · ур. {user.level}
+                  {formatMinor(user.balance_minor)}
                 </p>
               </div>
             </div>
@@ -133,31 +146,21 @@ export function UserMenu() {
 
             <div className="my-1 h-px bg-white/[0.07]" />
             <button
-              onClick={() => {
+              onClick={async () => {
                 setOpen(false);
-                setConfirmReset(true);
+                await logout();
+                toast.show("Вы вышли из аккаунта");
+                router.push("/");
+                router.refresh();
               }}
               className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13.5px] text-slate-400 transition hover:bg-danger/10 hover:text-danger"
             >
               <LogOut size={15} />
-              Сбросить демо-аккаунт
+              Выйти
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <ConfirmDialog
-        open={confirmReset}
-        onClose={() => setConfirmReset(false)}
-        onConfirm={() => {
-          reset();
-          toast.success("Аккаунт сброшен", "Баланс, инвентарь и история очищены");
-        }}
-        title="Сбросить демо-аккаунт?"
-        description="Баланс, инвентарь, история операций и партнёрские статусы вернутся к исходному состоянию. Действие необратимо."
-        confirmLabel="Сбросить"
-        danger
-      />
     </div>
   );
 }

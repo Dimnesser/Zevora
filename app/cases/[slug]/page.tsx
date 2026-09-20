@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { CASES, getCase } from "@/data/cases";
 import { CaseDetail } from "@/components/cases/CaseDetail";
 
-export function generateStaticParams() {
-  return CASES.map((c) => ({ slug: c.slug }));
-}
+/**
+ * Case pages are dynamic: the catalogue lives in the database and the
+ * owner can add or edit a case at any time, so nothing is prerendered.
+ */
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -13,11 +13,9 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const def = getCase(slug);
-  if (!def) return { title: "Кейс не найден" };
   return {
-    title: def.name,
-    description: `${def.subtitle}. Открой кейс ${def.name} в Zevora и забери скин CS2.`,
+    title: "Кейс",
+    description: `Открой кейс ${slug} в Zevora и забери скин CS2.`,
   };
 }
 
@@ -27,7 +25,5 @@ export default async function CasePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const def = getCase(slug);
-  if (!def) notFound();
-  return <CaseDetail def={def} />;
+  return <CaseDetail slug={slug} />;
 }

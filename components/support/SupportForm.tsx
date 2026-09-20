@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
+import { useSession } from "@/lib/client/session";
 import { Button } from "@/components/ui/Button";
 import { Input, Field } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { PartnerBadge } from "@/components/partners/PartnerBadge";
+import { TIERS } from "@/data/partners";
 import { toast } from "@/lib/store/useToast";
 
 const TOPICS = [
@@ -18,8 +18,8 @@ const TOPICS = [
 ];
 
 export function SupportForm() {
-  const hydrated = useHydrated();
-  const tier = useStore((s) => s.user.partner?.tier);
+  const { user } = useSession();
+  const tier = user?.partner?.tier as keyof typeof TIERS | undefined;
   const [topic, setTopic] = useState(TOPICS[0]);
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
@@ -42,7 +42,7 @@ export function SupportForm() {
 
   return (
     <Card className="not-prose p-5 sm:p-6">
-      {hydrated && tier && (
+      {tier && (
         <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5">
           <PartnerBadge tier={tier} size="xs" />
           <span className="text-[12.5px] text-slate-400">

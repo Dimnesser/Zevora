@@ -1,12 +1,16 @@
 "use client";
 
 import { useId, memo } from "react";
-import type { FinishPattern, Skin } from "@/types";
+import type { ArtSpec } from "@/lib/client/api";
+import type { WeaponKind } from "@/types";
 import { WEAPON_SHAPES, WEAPON_TILT } from "@/components/art/weaponPaths";
 import { cn } from "@/lib/utils";
 
 interface SkinArtProps {
-  skin: Skin;
+  /** Procedural finish description, as stored on the skin row. */
+  art: ArtSpec;
+  /** Accessible label, normally the market name. */
+  label?: string;
   className?: string;
   /** Adds a soft drop shadow in the skin's primary colour. */
   glow?: boolean;
@@ -17,11 +21,15 @@ interface SkinArtProps {
  * weaponPaths.ts, the finish is generated from the skin's palette and
  * pattern. No bitmap assets, so every skin is unique and scales cleanly.
  */
-function SkinArtBase({ skin, className, glow = true }: SkinArtProps) {
+function SkinArtBase({ art, label, className, glow = true }: SkinArtProps) {
   const uid = useId().replace(/:/g, "");
-  const [c1, c2] = skin.palette;
-  const shapes = WEAPON_SHAPES[skin.kind];
-  const tilt = WEAPON_TILT[skin.kind] ?? 0;
+  const c1 = art.color_a;
+  const c2 = art.color_b;
+  // Unknown kinds fall back to a rifle silhouette rather than crashing:
+  // the catalogue is editable data, so it can name a shape we lack.
+  const kind = (art.kind in WEAPON_SHAPES ? art.kind : "rifle-ak") as WeaponKind;
+  const shapes = WEAPON_SHAPES[kind];
+  const tilt = WEAPON_TILT[kind] ?? 0;
 
   const finishId = `finish-${uid}`;
   const hardwareId = `hw-${uid}`;
@@ -34,7 +42,7 @@ function SkinArtBase({ skin, className, glow = true }: SkinArtProps) {
       viewBox="0 0 400 180"
       className={cn("h-full w-full", className)}
       role="img"
-      aria-label={`${skin.weapon} | ${skin.name}`}
+      aria-label={label ?? "Скин CS2"}
       style={
         glow
           ? { filter: `drop-shadow(0 10px 22px ${c1}45)` }
@@ -42,7 +50,7 @@ function SkinArtBase({ skin, className, glow = true }: SkinArtProps) {
       }
     >
       <defs>
-        <FinishDef id={finishId} pattern={skin.pattern} c1={c1} c2={c2} />
+        <FinishDef id={finishId} pattern={art.pattern} c1={c1} c2={c2} />
 
         {/* Hardware: neutral dark metal, tinted slightly by the finish */}
         <linearGradient id={hardwareId} x1="0" y1="0" x2="0" y2="1">
@@ -141,7 +149,7 @@ function FinishDef({
   c2,
 }: {
   id: string;
-  pattern: FinishPattern;
+  pattern: string;
   c1: string;
   c2: string;
 }) {

@@ -9,6 +9,7 @@ const COLUMNS = [
       { href: "/upgrade", label: "Апгрейд" },
       { href: "/shop", label: "Магазин" },
       { href: "/leaderboard", label: "Рейтинг" },
+      { href: "/history", label: "История" },
     ],
   },
   {

@@ -1,12 +1,17 @@
 "use client";
 
 import { memo, useId } from "react";
-import type { CaseDefinition } from "@/types";
 import { cn } from "@/lib/utils";
 import { shade } from "@/components/art/SkinArt";
 
+export interface CaseArtSpec {
+  emblem: string;
+  color_a: string;
+  color_b: string;
+}
+
 /** Emblem glyphs stamped on the case lid. */
-const EMBLEMS: Record<CaseDefinition["emblem"], string> = {
+const EMBLEMS: Record<string, string> = {
   skull:
     "M32 8 C18 8 8 19 8 33 C8 42 13 48 18 52 L18 60 H46 L46 52 C51 48 56 42 56 33 C56 19 46 8 32 8 Z M22 32 a6 6 0 1 1 12 0 a6 6 0 1 1 -12 0 M38 32 a6 6 0 1 1 12 0 a6 6 0 1 1 -12 0 M27 50 h10 v8 h-10 Z",
   bolt: "M36 4 L12 36 H28 L24 60 L52 26 H34 Z",
@@ -21,7 +26,8 @@ const EMBLEMS: Record<CaseDefinition["emblem"], string> = {
 };
 
 interface CaseArtProps {
-  def: CaseDefinition;
+  art: CaseArtSpec;
+  label?: string;
   className?: string;
   /** Slight 3D lean; disable for flat contexts like the roulette. */
   tilt?: boolean;
@@ -31,9 +37,10 @@ interface CaseArtProps {
  * Case artwork: an isometric crate painted in the case palette with a
  * stamped emblem. Fully generated, so a new case needs no asset work.
  */
-function CaseArtBase({ def, className, tilt = true }: CaseArtProps) {
+function CaseArtBase({ art, label, className, tilt = true }: CaseArtProps) {
   const raw = useId().replace(/:/g, "");
-  const [c1, c2] = def.palette;
+  const c1 = art.color_a;
+  const c2 = art.color_b;
 
   const body = `body-${raw}`;
   const lid = `lid-${raw}`;
@@ -46,7 +53,7 @@ function CaseArtBase({ def, className, tilt = true }: CaseArtProps) {
       viewBox="0 0 200 180"
       className={cn("h-full w-full", className)}
       role="img"
-      aria-label={def.name}
+      aria-label={label ?? "Кейс"}
       style={{ filter: `drop-shadow(0 16px 28px ${c1}40)` }}
     >
       <defs>
@@ -106,7 +113,7 @@ function CaseArtBase({ def, className, tilt = true }: CaseArtProps) {
         {/* emblem on the lid */}
         <g transform="translate(100 57) scale(0.62) translate(-32 -32)">
           <path
-            d={EMBLEMS[def.emblem]}
+            d={EMBLEMS[art.emblem] ?? EMBLEMS.hex}
             fill="#0B0D18"
             fillOpacity="0.55"
             stroke={shade(c1, 0.6)}

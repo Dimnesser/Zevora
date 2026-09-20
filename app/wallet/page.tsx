@@ -8,7 +8,15 @@ export const metadata: Metadata = {
     "Пополнение баланса, вывод предметов в Steam и полная история операций Zevora.",
 };
 
-export default function WalletPage() {
+export default async function WalletPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const initial =
+    tab === "withdraw" || tab === "history" ? tab : "deposit";
+
   return (
     <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       <SectionHeader
@@ -16,7 +24,7 @@ export default function WalletPage() {
         title="Баланс и вывод"
         description="Пополняйте баланс удобным способом и выводите предметы напрямую в Steam."
       />
-      <WalletView />
+      <WalletView initialTab={initial} />
     </div>
   );
 }

@@ -2,45 +2,42 @@
 
 import { motion } from "framer-motion";
 import { memo, type ReactNode } from "react";
-import type { InventoryItem, Skin } from "@/types";
-import { getSkin } from "@/data/skins";
-import { RARITY } from "@/lib/rarity";
-import { SkinArt } from "@/components/art/SkinArt";
+import type { DisplaySkin } from "@/lib/client/display";
+import { rarityGradient } from "@/lib/client/display";
+import { SkinImage } from "@/components/art/SkinImage";
 import { RarityBar, RarityTag } from "@/components/items/RarityTag";
-import { formatMoney } from "@/lib/format";
+import { formatMinor } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface ItemCardProps {
-  /** Pass either an owned instance or a catalogue skin. */
-  item?: InventoryItem;
-  skin?: Skin;
-  /** Overrides the price shown (e.g. the catalogue price). */
-  price?: number;
+  skin: DisplaySkin;
+  /** Overrides the price shown on the card. */
+  priceMinor?: number;
   selected?: boolean;
   disabled?: boolean;
   onClick?: () => void;
   footer?: ReactNode;
-  /** Extra line under the name, e.g. wear or drop chance. */
+  /** Extra line under the name — wear, drop chance, acquisition date. */
   meta?: ReactNode;
+  badge?: ReactNode;
   className?: string;
   size?: "sm" | "md";
 }
 
 function ItemCardBase({
-  item,
-  skin: skinProp,
-  price,
+  skin,
+  priceMinor,
   selected,
   disabled,
   onClick,
   footer,
   meta,
+  badge,
   className,
   size = "md",
 }: ItemCardProps) {
-  const skin = skinProp ?? getSkin(item!.skinId);
-  const rarity = RARITY[skin.rarity];
-  const value = price ?? item?.price ?? skin.price;
+  const color = skin.rarity.color;
+  const value = priceMinor ?? skin.price_minor;
 
   return (
     <motion.div
@@ -52,22 +49,19 @@ function ItemCardBase({
         "glass group relative flex flex-col overflow-hidden",
         onClick && !disabled && "cursor-pointer",
         disabled && "opacity-40 saturate-50",
-        selected && "ring-2",
         className,
       )}
       style={{
-        borderColor: selected ? rarity.color : undefined,
+        borderColor: selected ? color : undefined,
         boxShadow: selected
-          ? `0 0 0 1px ${rarity.color}, 0 12px 40px -18px ${rarity.color}`
+          ? `0 0 0 1px ${color}, 0 12px 40px -18px ${color}`
           : undefined,
-        ["--tw-ring-color" as string]: rarity.color,
       }}
     >
-      {/* rarity wash */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-70 transition-opacity duration-300 group-hover:opacity-100"
-        style={{ background: rarity.gradient }}
+        style={{ background: rarityGradient(color) }}
       />
 
       <div
@@ -77,19 +71,13 @@ function ItemCardBase({
         )}
       >
         <div className="h-full w-full transition-transform duration-500 ease-premium group-hover:scale-[1.06]">
-          <SkinArt skin={skin} />
+          <SkinImage
+            imageUrl={skin.image_url}
+            art={skin.art}
+            label={skin.market_name}
+          />
         </div>
-
-        {item?.counter && (
-          <span className="absolute left-3 top-3 rounded-md border border-gold-400/40 bg-gold-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gold-300">
-            Counter
-          </span>
-        )}
-        {item?.status === "withdrawing" && (
-          <span className="absolute right-3 top-3 rounded-md border border-aqua-400/40 bg-aqua-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-aqua-300">
-            Вывод
-          </span>
-        )}
+        {badge && <div className="absolute left-3 top-3">{badge}</div>}
       </div>
 
       <div
@@ -107,28 +95,22 @@ function ItemCardBase({
             size === "sm" ? "text-[13px]" : "text-[14.5px]",
           )}
         >
-          {skin.name}
+          {skin.finish}
         </p>
 
-        {meta ?? (
-          item && (
-            <p className="truncate text-[11.5px] text-slate-500">
-              {item.wear} · {item.float.toFixed(3)}
-            </p>
-          )
-        )}
+        {meta}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-          <RarityTag rarity={skin.rarity} compact />
-          <span className="text-[13px] font-bold tabular-nums text-white">
-            {formatMoney(value)}
+          <RarityTag rarity={skin.rarity} />
+          <span className="shrink-0 text-[13px] font-bold tabular-nums text-white">
+            {formatMinor(value)}
           </span>
         </div>
 
         {footer && <div className="pt-2.5">{footer}</div>}
       </div>
 
-      <RarityBar rarity={skin.rarity} />
+      <RarityBar color={color} />
     </motion.div>
   );
 }

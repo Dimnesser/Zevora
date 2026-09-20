@@ -1,40 +1,47 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Radio } from "lucide-react";
 import Link from "next/link";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
-import { getSkin } from "@/data/skins";
-import { RARITY } from "@/lib/rarity";
-import { SkinArt } from "@/components/art/SkinArt";
-import { formatMoney } from "@/lib/format";
-import { subscribeLiveDrops } from "@/services/api";
-import { uid } from "@/lib/utils";
+import { api, type Opening } from "@/lib/client/api";
+import { SkinImage } from "@/components/art/SkinImage";
+import { formatMinor, timeAgo } from "@/lib/format";
+
+const POLL_MS = 8000;
 
 /**
- * Live drop rail. Fed by services/api.subscribeLiveDrops, which is a mock
- * interval today and a WebSocket subscription once the backend lands.
+ * Live feed of real openings.
+ *
+ * Every entry comes from case_openings — there is no synthetic drop
+ * generator, so an empty rail means nobody has opened anything yet.
  */
 export function LiveDrops() {
-  const drops = useStore((s) => s.liveDrops);
-  const push = useStore((s) => s.pushLiveDrop);
-  const hydrated = useHydrated();
+  const [drops, setDrops] = useState<Opening[]>([]);
 
   useEffect(() => {
-    const unsubscribe = subscribeLiveDrops((d) => {
-      push({
-        id: uid("live"),
-        username: d.username,
-        avatarSeed: d.username,
-        skinId: d.skinId,
-        caseSlug: d.caseSlug,
-        at: Date.now(),
-      });
-    });
-    return unsubscribe;
-  }, [push]);
+    let alive = true;
+
+    const load = async () => {
+      try {
+        const { drops: fresh } = await api.live(16);
+        if (alive) setDrops(fresh);
+      } catch {
+        /* the rail is decorative; a failed poll just keeps the last list */
+      }
+    };
+
+    void load();
+    // Polling stands in for a socket; swapping in a WebSocket only
+    // changes this effect.
+    const timer = setInterval(load, POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  if (drops.length === 0) return null;
 
   return (
     <section className="relative border-y border-white/[0.06] bg-abyss/50">
@@ -51,50 +58,52 @@ export function LiveDrops() {
 
         <div className="mask-fade-x no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
           <AnimatePresence initial={false} mode="popLayout">
-            {(hydrated ? drops : drops.slice(0, 8)).slice(0, 14).map((drop) => {
-              const skin = getSkin(drop.skinId);
-              const rarity = RARITY[skin.rarity];
-              return (
-                <motion.div
-                  key={drop.id}
-                  layout
-                  initial={{ opacity: 0, x: -30, scale: 0.9 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ type: "spring", stiffness: 340, damping: 30 }}
-                  className="shrink-0"
+            {drops.map((drop) => (
+              <motion.div
+                key={drop.id}
+                layout
+                initial={{ opacity: 0, x: -30, scale: 0.9 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 340, damping: 30 }}
+                className="shrink-0"
+              >
+                <Link
+                  href={`/cases/${drop.case.slug}`}
+                  className="group flex w-[218px] items-center gap-2.5 rounded-xl border bg-white/[0.03] px-2.5 py-2 transition hover:bg-white/[0.07]"
+                  style={{ borderColor: `${drop.rarity.color}33` }}
+                  title={`${drop.username} · ${drop.case.name} · ${timeAgo(drop.created_at)}`}
                 >
-                  <Link
-                    href={`/cases/${drop.caseSlug}`}
-                    className="group flex w-[210px] items-center gap-2.5 rounded-xl border bg-white/[0.03] px-2.5 py-2 transition hover:bg-white/[0.07]"
-                    style={{ borderColor: `${rarity.color}33` }}
+                  <span
+                    className="h-8 w-[72px] shrink-0 rounded-lg"
+                    style={{ background: `${drop.rarity.color}14` }}
                   >
+                    <SkinImage
+                      imageUrl={drop.image_url}
+                      art={drop.art}
+                      label={drop.market_name}
+                      glow={false}
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1">
                     <span
-                      className="h-8 w-[72px] shrink-0 rounded-lg"
-                      style={{ background: `${rarity.color}14` }}
+                      className="block truncate text-[11.5px] font-semibold"
+                      style={{ color: drop.rarity.color }}
                     >
-                      <SkinArt skin={skin} glow={false} />
+                      {drop.finish}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className="block truncate text-[11.5px] font-semibold"
-                        style={{ color: rarity.color }}
-                      >
-                        {skin.name}
-                      </span>
-                      <span className="block truncate text-[10.5px] text-slate-500">
-                        {drop.username} · {formatMoney(skin.price)}
-                      </span>
+                    <span className="block truncate text-[10.5px] text-slate-500">
+                      {drop.username} · {formatMinor(drop.value_minor)}
                     </span>
-                  </Link>
-                </motion.div>
-              );
-            })}
+                  </span>
+                </Link>
+              </motion.div>
+            ))}
           </AnimatePresence>
         </div>
 
         <Link
-          href="/leaderboard"
+          href="/history"
           className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-[12px] text-slate-400 transition hover:text-white lg:flex"
         >
           <Radio size={12} />

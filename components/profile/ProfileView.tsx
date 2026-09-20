@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { motion } from "framer-motion";
 import {
   Backpack,
   Boxes,
@@ -10,72 +8,108 @@ import {
   Crown,
   Flame,
   Gem,
+  LogIn,
   Package,
-  Pencil,
   TrendingUp,
   Zap,
 } from "lucide-react";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
+import { api, type MyStats } from "@/lib/client/api";
+import { useResource } from "@/hooks/useResource";
+import { useSession } from "@/lib/client/session";
 import { Avatar } from "@/components/art/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Progress } from "@/components/ui/Progress";
-import { Modal } from "@/components/ui/Modal";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ItemCard } from "@/components/items/ItemCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TransactionList } from "@/components/wallet/TransactionList";
 import { PartnerCrest } from "@/components/partners/PartnerBadge";
 import { PartnerSummary } from "@/components/profile/PartnerSummary";
-import { ACHIEVEMENTS } from "@/data/achievements";
 import { TIERS } from "@/data/partners";
-import { formatMoney, formatDate, formatPercent } from "@/lib/format";
-import { toast } from "@/lib/store/useToast";
+import { formatDate, formatMinor, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const LEVEL_STEP = 500;
 
 const ICONS: Record<string, typeof Package> = {
   package: Package,
   boxes: Boxes,
   zap: Zap,
   "trending-up": TrendingUp,
-  flask: Gem,
   gem: Gem,
   crown: Crown,
   flame: Flame,
 };
 
-/** XP needed to reach the next level. */
-const LEVEL_STEP = 500;
+/** Achievement definitions, evaluated against the server's aggregates. */
+const ACHIEVEMENTS: {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  goal: number;
+  read: (s: MyStats, streak: number) => number;
+  format?: (n: number) => string;
+}[] = [
+  { id: "first", name: "Первое открытие", description: "Откройте свой первый кейс.", icon: "package", goal: 1, read: (s) => s.cases_opened },
+  { id: "collector", name: "Коллекционер", description: "Откройте 25 кейсов.", icon: "boxes", goal: 25, read: (s) => s.cases_opened },
+  { id: "machine", name: "Машина", description: "Откройте 100 кейсов.", icon: "zap", goal: 100, read: (s) => s.cases_opened },
+  { id: "gambler", name: "Рисковый", description: "Сделайте 10 апгрейдов.", icon: "trending-up", goal: 10, read: (s) => s.upgrades },
+  { id: "alchemist", name: "Алхимик", description: "Выиграйте 5 апгрейдов.", icon: "gem", goal: 5, read: (s) => s.upgrades_won },
+  { id: "highroller", name: "Хайроллер", description: "Выбейте предмет дороже 25 000 ₽.", icon: "gem", goal: 2_500_000, read: (s) => s.best_minor, format: formatMinor },
+  { id: "millionaire", name: "Миллионер", description: "Выиграйте предметов на 1 000 000 ₽.", icon: "crown", goal: 100_000_000, read: (s) => s.won_minor, format: formatMinor },
+  { id: "streak", name: "Постоянство", description: "Соберите streak из 7 дней.", icon: "flame", goal: 7, read: (_s, streak) => streak },
+];
 
 export function ProfileView() {
-  const hydrated = useHydrated();
-  const user = useStore((s) => s.user);
-  const inventory = useStore((s) => s.inventory);
-  const setUsername = useStore((s) => s.setUsername);
+  const { user, ready } = useSession();
 
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(user.username);
+  const { data: statsData } = useResource(
+    () => (user ? api.stats() : Promise.resolve(null)),
+    [user?.id, user?.balance_minor],
+  );
+  const { data: inv } = useResource(
+    () => (user ? api.inventory({ sort: "price-desc" }) : Promise.resolve(null)),
+    [user?.id, user?.balance_minor],
+  );
 
-  const tier = hydrated ? user.partner?.tier : undefined;
+  if (!ready) {
+    return <Skeleton className="h-[320px] w-full rounded-3xl" />;
+  }
+
+  if (!user) {
+    return (
+      <EmptyState
+        icon={<LogIn size={22} />}
+        title="Войдите в аккаунт"
+        description="Профиль, статистика и достижения привязаны к аккаунту."
+        action={
+          <Link href="/login">
+            <Button>Войти</Button>
+          </Link>
+        }
+      />
+    );
+  }
+
+  const stats = statsData?.stats;
+  const tier = user.partner?.tier as keyof typeof TIERS | undefined;
   const tierColors = tier ? TIERS[tier].colors : null;
-
-  const owned = hydrated ? inventory.filter((i) => i.status === "owned") : [];
-  const inventoryValue = owned.reduce((s, i) => s + i.price, 0);
+  const owned = (inv?.items ?? []).filter((i) => i.status === "owned");
   const xpInLevel = user.xp % LEVEL_STEP;
-  const winRate =
-    user.stats.upgrades > 0 ? user.stats.upgradesWon / user.stats.upgrades : 0;
+  const level = Math.floor(user.xp / LEVEL_STEP) + 1;
+  const winRate = stats && stats.upgrades > 0 ? stats.upgrades_won / stats.upgrades : 0;
 
-  const stats = [
-    { label: "Кейсов открыто", value: user.stats.casesOpened, icon: Package },
-    { label: "Апгрейдов", value: user.stats.upgrades, icon: TrendingUp },
-    { label: "Удачных апгрейдов", value: user.stats.upgradesWon, icon: Check },
-    { label: "Предметов", value: owned.length, icon: Backpack },
+  const tiles = [
+    { label: "Кейсов открыто", value: stats?.cases_opened ?? 0, icon: Package },
+    { label: "Апгрейдов", value: stats?.upgrades ?? 0, icon: TrendingUp },
+    { label: "Удачных апгрейдов", value: stats?.upgrades_won ?? 0, icon: Check },
+    { label: "Предметов", value: stats?.inventory_items ?? 0, icon: Backpack },
   ];
 
   return (
     <div className="space-y-5">
-      {/* ───────── header card ───────── */}
       <Card
         strong
         className="relative overflow-hidden p-5 sm:p-7"
@@ -98,40 +132,22 @@ export function ProfileView() {
 
         <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="flex items-center gap-4">
-            <Avatar
-              seed={user.avatarSeed}
-              size={84}
-              ring={tierColors?.[0]}
-            />
+            <Avatar seed={user.avatar_seed} size={84} ring={tierColors?.[0]} />
             <div className="min-w-0 sm:hidden">
               <h1 className="truncate font-display text-2xl font-bold text-white">
-                {hydrated ? user.username : "…"}
+                {user.username}
               </h1>
-              <p className="text-[12.5px] text-slate-400">
-                Уровень {user.level}
-              </p>
+              <p className="text-[12.5px] text-slate-400">Уровень {level}</p>
             </div>
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="hidden items-center gap-3 sm:flex">
-              <h1 className="truncate font-display text-[30px] font-bold text-white">
-                {hydrated ? user.username : "…"}
-              </h1>
-              <button
-                onClick={() => {
-                  setDraft(user.username);
-                  setEditing(true);
-                }}
-                aria-label="Изменить ник"
-                className="rounded-lg border border-white/10 bg-white/[0.05] p-2 text-slate-400 transition hover:text-white"
-              >
-                <Pencil size={13} />
-              </button>
-            </div>
-
+            <h1 className="hidden truncate font-display text-[30px] font-bold text-white sm:block">
+              {user.username}
+            </h1>
             <p className="mt-1 text-[13px] text-slate-400">
-              В Zevora с {hydrated ? formatDate(user.createdAt) : "—"}
+              В Zevora с {formatDate(user.created_at)}
+              {user.role === "owner" && " · владелец платформы"}
             </p>
 
             {tier && (
@@ -142,23 +158,20 @@ export function ProfileView() {
 
             <div className="mt-4 max-w-sm">
               <div className="mb-1.5 flex items-center justify-between text-[12px]">
-                <span className="text-slate-400">Уровень {user.level}</span>
-                <span className="text-slate-500 tabular-nums">
+                <span className="text-slate-400">Уровень {level}</span>
+                <span className="tabular-nums text-slate-500">
                   {xpInLevel} / {LEVEL_STEP} XP
                 </span>
               </div>
-              <Progress
-                value={xpInLevel / LEVEL_STEP}
-                color={tierColors?.[0] ?? "#6E71FF"}
-              />
+              <Progress value={xpInLevel / LEVEL_STEP} color={tierColors?.[0] ?? "#6E71FF"} />
             </div>
           </div>
 
           <div className="grid shrink-0 grid-cols-2 gap-3 sm:w-[260px]">
-            <MiniStat label="Баланс" value={hydrated ? formatMoney(user.balance) : "—"} />
+            <MiniStat label="Баланс" value={formatMinor(user.balance_minor)} />
             <MiniStat
               label="Инвентарь"
-              value={hydrated ? formatMoney(inventoryValue) : "—"}
+              value={formatMinor(stats?.inventory_value_minor ?? 0)}
               accent="#2FD98A"
             />
             <Link href="/wallet" className="col-span-2">
@@ -168,49 +181,32 @@ export function ProfileView() {
         </div>
       </Card>
 
-      {/* ───────── partner panel ───────── */}
-      {tier && user.partner && <PartnerSummary partner={user.partner} />}
+      {user.partner && <PartnerSummary partner={user.partner} username={user.username} />}
 
-      {/* ───────── stats ───────── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s, i) => (
-          <motion.div
-            key={s.label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: i * 0.05 }}
-          >
-            <Card className="flex items-center gap-3 p-4">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-slate-300">
-                <s.icon size={17} />
-              </span>
-              <div>
-                <p className="text-[11.5px] uppercase tracking-wider text-slate-500">
-                  {s.label}
-                </p>
-                <p className="text-[19px] font-bold tabular-nums text-white">
-                  {hydrated ? s.value : "—"}
-                </p>
-              </div>
-            </Card>
-          </motion.div>
+        {tiles.map((t) => (
+          <Card key={t.label} className="flex items-center gap-3 p-4">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-slate-300">
+              <t.icon size={17} />
+            </span>
+            <div>
+              <p className="text-[11.5px] uppercase tracking-wider text-slate-500">{t.label}</p>
+              <p className="text-[19px] font-bold tabular-nums text-white">{t.value}</p>
+            </div>
+          </Card>
         ))}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-        {/* ───────── achievements ───────── */}
         <Card className="p-5">
           <h2 className="mb-4 text-[15px] font-semibold text-white">Достижения</h2>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {ACHIEVEMENTS.map((a) => {
-              const raw =
-                a.metric === "streak"
-                  ? user.bonuses.streak
-                  : user.stats[a.metric as keyof typeof user.stats];
-              const current = hydrated ? Number(raw) : 0;
+              const current = stats ? a.read(stats, user.bonuses.daily_streak) : 0;
               const progress = Math.min(1, current / a.goal);
               const done = progress >= 1;
               const Icon = ICONS[a.icon] ?? Package;
+              const fmt = a.format ?? ((n: number) => n.toLocaleString("ru-RU"));
 
               return (
                 <div
@@ -226,9 +222,7 @@ export function ProfileView() {
                     <span
                       className={cn(
                         "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                        done
-                          ? "bg-gold-400/20 text-gold-300"
-                          : "bg-white/[0.06] text-slate-500",
+                        done ? "bg-gold-400/20 text-gold-300" : "bg-white/[0.06] text-slate-500",
                       )}
                     >
                       {done ? <Check size={16} /> : <Icon size={15} />}
@@ -248,14 +242,9 @@ export function ProfileView() {
                     </div>
                   </div>
                   <div className="mt-3">
-                    <Progress
-                      value={progress}
-                      height={4}
-                      color={done ? "#F5B841" : "#6E71FF"}
-                    />
+                    <Progress value={progress} height={4} color={done ? "#F5B841" : "#6E71FF"} />
                     <p className="mt-1.5 text-right text-[10.5px] tabular-nums text-slate-500">
-                      {Math.min(current, a.goal).toLocaleString("ru-RU")} /{" "}
-                      {a.goal.toLocaleString("ru-RU")}
+                      {fmt(Math.min(current, a.goal))} / {fmt(a.goal)}
                     </p>
                   </div>
                 </div>
@@ -264,23 +253,13 @@ export function ProfileView() {
           </div>
         </Card>
 
-        {/* ───────── history + winrate ───────── */}
         <div className="space-y-5">
           <Card className="p-5">
-            <h2 className="mb-4 text-[15px] font-semibold text-white">
-              Статистика апгрейдов
-            </h2>
+            <h2 className="mb-4 text-[15px] font-semibold text-white">Статистика</h2>
             <div className="flex items-center gap-5">
               <div className="relative h-24 w-24 shrink-0">
                 <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    stroke="rgba(255,255,255,.07)"
-                    strokeWidth="10"
-                  />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="10" />
                   <circle
                     cx="50"
                     cy="50"
@@ -298,30 +277,28 @@ export function ProfileView() {
                 </span>
               </div>
               <dl className="flex-1 space-y-2.5">
-                <StatRow label="Всего апгрейдов" value={user.stats.upgrades} />
-                <StatRow label="Успешных" value={user.stats.upgradesWon} />
+                <StatRow label="Потрачено" value={formatMinor(stats?.spent_minor ?? 0)} />
+                <StatRow label="Выиграно" value={formatMinor(stats?.won_minor ?? 0)} />
+                <StatRow label="Лучший дроп" value={formatMinor(stats?.best_minor ?? 0)} />
                 <StatRow
-                  label="Лучший дроп"
-                  value={formatMoney(user.stats.bestDropValue)}
-                />
-                <StatRow
-                  label="Всего выиграно"
-                  value={formatMoney(user.stats.totalWon)}
+                  label="Апгрейды"
+                  value={`${stats?.upgrades_won ?? 0} / ${stats?.upgrades ?? 0}`}
                 />
               </dl>
             </div>
+            {stats?.best_drop && (
+              <p className="mt-4 border-t border-white/[0.06] pt-3 text-[12px] text-slate-500">
+                Лучший предмет:{" "}
+                <span className="font-semibold text-white">{stats.best_drop.market_name}</span>
+              </p>
+            )}
           </Card>
 
           <Card className="p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-white">
-                История действий
-              </h2>
-              <Link
-                href="/wallet"
-                className="text-[12px] text-zev-300 transition hover:text-white"
-              >
-                Вся история
+              <h2 className="text-[15px] font-semibold text-white">История действий</h2>
+              <Link href="/history" className="text-[12px] text-zev-300 transition hover:text-white">
+                Все открытия
               </Link>
             </div>
             <TransactionList limit={8} />
@@ -329,14 +306,10 @@ export function ProfileView() {
         </div>
       </div>
 
-      {/* ───────── inventory preview ───────── */}
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-white">Инвентарь</h2>
-          <Link
-            href="/inventory"
-            className="text-[12px] text-zev-300 transition hover:text-white"
-          >
+          <Link href="/inventory" className="text-[12px] text-zev-300 transition hover:text-white">
             Открыть полностью
           </Link>
         </div>
@@ -352,69 +325,20 @@ export function ProfileView() {
           />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {owned
-              .slice()
-              .sort((a, b) => b.price - a.price)
-              .slice(0, 6)
-              .map((item) => (
-                <ItemCard key={item.uid} item={item} size="sm" />
-              ))}
+            {owned.slice(0, 6).map((item) => (
+              <ItemCard key={item.id} skin={item} size="sm" />
+            ))}
           </div>
         )}
       </Card>
-
-      <Modal
-        open={editing}
-        onClose={() => setEditing(false)}
-        title="Изменить ник"
-        size="sm"
-      >
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          maxLength={20}
-          placeholder="Новый ник"
-          aria-label="Новый ник"
-        />
-        <div className="mt-5 flex gap-3">
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={() => setEditing(false)}
-          >
-            Отмена
-          </Button>
-          <Button
-            fullWidth
-            disabled={!draft.trim()}
-            onClick={() => {
-              setUsername(draft.trim());
-              setEditing(false);
-              toast.success("Ник обновлён");
-            }}
-          >
-            Сохранить
-          </Button>
-        </div>
-      </Modal>
     </div>
   );
 }
 
-function MiniStat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-}) {
+function MiniStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5">
-      <p className="text-[10.5px] uppercase tracking-wider text-slate-500">
-        {label}
-      </p>
+      <p className="text-[10.5px] uppercase tracking-wider text-slate-500">{label}</p>
       <p
         className="mt-0.5 truncate text-[15px] font-bold tabular-nums"
         style={{ color: accent ?? "#fff" }}
@@ -425,13 +349,11 @@ function MiniStat({
   );
 }
 
-function StatRow({ label, value }: { label: string; value: string | number }) {
+function StatRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
       <dt className="text-[12.5px] text-slate-400">{label}</dt>
-      <dd className="text-[13px] font-semibold tabular-nums text-white">
-        {value}
-      </dd>
+      <dd className="text-[13px] font-semibold tabular-nums text-white">{value}</dd>
     </div>
   );
 }

@@ -2,16 +2,25 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import type { InventoryItem, Rarity, Skin } from "@/types";
-import { SKINS, getSkin } from "@/data/skins";
-import { RARITY, RARITY_ORDER } from "@/lib/rarity";
+import type { CaseItem, InventoryItem } from "@/lib/client/api";
 import { ItemCard } from "@/components/items/ItemCard";
 import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatMoney } from "@/lib/format";
+import { formatMinor } from "@/lib/format";
+import { RARITY_ORDER } from "@/lib/client/display";
 import { cn } from "@/lib/utils";
 
-/** Picker over the user's own items (the stake side). */
+const RARITY_LABEL: Record<string, string> = {
+  consumer: "Consumer",
+  industrial: "Industrial",
+  milspec: "Mil-Spec",
+  restricted: "Restricted",
+  classified: "Classified",
+  covert: "Covert",
+  special: "Special",
+};
+
+/** Picker over the player's own items — the stake side. */
 export function StakePicker({
   items,
   selected,
@@ -19,8 +28,8 @@ export function StakePicker({
   className,
 }: {
   items: InventoryItem[];
-  selected: string[];
-  onToggle: (uid: string) => void;
+  selected: number[];
+  onToggle: (id: number) => void;
   className?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -29,14 +38,8 @@ export function StakePicker({
     const q = query.trim().toLowerCase();
     return items
       .filter((i) => i.status === "owned")
-      .filter((i) => {
-        if (!q) return true;
-        const s = getSkin(i.skinId);
-        return (
-          s.name.toLowerCase().includes(q) || s.weapon.toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => b.price - a.price);
+      .filter((i) => !q || i.market_name.toLowerCase().includes(q))
+      .sort((a, b) => b.price_minor - a.price_minor);
   }, [items, query]);
 
   return (
@@ -60,11 +63,16 @@ export function StakePicker({
         <div className="no-scrollbar grid max-h-[420px] grid-cols-2 gap-2.5 overflow-y-auto pr-0.5 lg:max-h-[520px]">
           {filtered.map((item) => (
             <ItemCard
-              key={item.uid}
-              item={item}
+              key={item.id}
+              skin={item}
               size="sm"
-              selected={selected.includes(item.uid)}
-              onClick={() => onToggle(item.uid)}
+              selected={selected.includes(item.id)}
+              onClick={() => onToggle(item.id)}
+              meta={
+                <span className="truncate text-[11.5px] text-slate-500">
+                  {item.wear}
+                </span>
+              }
             />
           ))}
         </div>
@@ -73,47 +81,52 @@ export function StakePicker({
   );
 }
 
-/** Picker over the catalogue (the target side). */
+/** Picker over the catalogue — the target side. */
 export function TargetPicker({
+  catalogue,
   stakeValue,
-  selectedId,
+  selectedSkinId,
   onSelect,
   className,
 }: {
+  catalogue: CaseItem[];
   stakeValue: number;
-  selectedId: string | null;
-  onSelect: (skin: Skin) => void;
+  selectedSkinId: number | null;
+  onSelect: (skin: CaseItem) => void;
   className?: string;
 }) {
-  const [rarity, setRarity] = useState<Rarity | "all">("all");
+  const [rarity, setRarity] = useState<string>("all");
   const [query, setQuery] = useState("");
 
   const options = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return SKINS
-      // A target must be worth more than the stake, otherwise it is not an upgrade.
-      .filter((s) => s.price > stakeValue * 1.05)
-      .filter((s) => rarity === "all" || s.rarity === rarity)
-      .filter(
-        (s) =>
-          !q ||
-          s.name.toLowerCase().includes(q) ||
-          s.weapon.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.price - b.price);
-  }, [stakeValue, rarity, query]);
+    return catalogue
+      // A target must be worth more than the stake, or it is not an upgrade.
+      .filter((s) => s.price_minor > stakeValue * 1.05)
+      .filter((s) => rarity === "all" || s.rarity.slug === rarity)
+      .filter((s) => !q || s.market_name.toLowerCase().includes(q))
+      .sort((a, b) => a.price_minor - b.price_minor);
+  }, [catalogue, stakeValue, rarity, query]);
+
+  const present = useMemo(() => {
+    const map = new Map<string, string>();
+    catalogue.forEach((c) => map.set(c.rarity.slug, c.rarity.color));
+    return RARITY_ORDER.filter((slug) => map.has(slug)).map((slug) => ({
+      slug,
+      color: map.get(slug)!,
+    }));
+  }, [catalogue]);
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
-      <div className="mb-3 flex gap-2">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск предмета"
-          iconLeft={<Search size={15} />}
-          aria-label="Поиск предмета"
-        />
-      </div>
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Поиск предмета"
+        iconLeft={<Search size={15} />}
+        className="mb-3"
+        aria-label="Поиск предмета"
+      />
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         <button
@@ -127,21 +140,20 @@ export function TargetPicker({
         >
           Все
         </button>
-        {RARITY_ORDER.map((r) => (
+        {present.map(({ slug, color }) => (
           <button
-            key={r}
-            onClick={() => setRarity(r)}
+            key={slug}
+            onClick={() => setRarity(slug)}
             className={cn(
               "rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition",
-              rarity === r ? "text-white" : "text-slate-400 hover:text-white",
+              rarity === slug ? "text-white" : "text-slate-400 hover:text-white",
             )}
             style={{
-              borderColor:
-                rarity === r ? RARITY[r].color : "rgba(255,255,255,.07)",
-              background: rarity === r ? `${RARITY[r].color}1F` : undefined,
+              borderColor: rarity === slug ? color : "rgba(255,255,255,.07)",
+              background: rarity === slug ? `${color}1F` : undefined,
             }}
           >
-            {RARITY[r].label}
+            {RARITY_LABEL[slug] ?? slug}
           </button>
         ))}
       </div>
@@ -162,14 +174,14 @@ export function TargetPicker({
         <div className="no-scrollbar grid max-h-[420px] grid-cols-2 gap-2.5 overflow-y-auto pr-0.5 lg:max-h-[520px]">
           {options.map((skin) => (
             <ItemCard
-              key={skin.id}
+              key={skin.skin_id}
               skin={skin}
               size="sm"
-              selected={selectedId === skin.id}
+              selected={selectedSkinId === skin.skin_id}
               onClick={() => onSelect(skin)}
               meta={
                 <span className="text-[11.5px] text-slate-500">
-                  ×{(skin.price / Math.max(stakeValue, 1)).toFixed(2)} от ставки
+                  ×{(skin.price_minor / Math.max(stakeValue, 1)).toFixed(2)} от ставки
                 </span>
               }
             />
@@ -179,7 +191,7 @@ export function TargetPicker({
 
       {stakeValue > 0 && (
         <p className="mt-3 text-[12px] text-slate-500">
-          Ставка: {formatMoney(stakeValue)} · доступно целей: {options.length}
+          Ставка: {formatMinor(stakeValue)} · доступно целей: {options.length}
         </p>
       )}
     </div>

@@ -1,97 +1,82 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Check,
-  Copy,
-  Flame,
-  Gift,
-  Link2,
-  Sparkles,
-  Ticket,
-  UserPlus,
-  Users,
-} from "lucide-react";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
+import Link from "next/link";
+import { Check, Copy, Flame, Gift, Link2, LogIn, Sparkles, Ticket, UserPlus, Users } from "lucide-react";
+import { ApiRequestError, api } from "@/lib/client/api";
+import { useSession } from "@/lib/client/session";
 import { useCopy } from "@/hooks/useCopy";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Progress } from "@/components/ui/Progress";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PartnerBadge } from "@/components/partners/PartnerBadge";
 import { TIERS } from "@/data/partners";
-import { refLinkFor } from "@/lib/partner";
-import { formatMoney } from "@/lib/format";
+import { formatMinor } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
 import { cn } from "@/lib/utils";
 
 const DAY = 86_400_000;
-const DAILY_BASE = 150;
+const DAILY_BASE_MINOR = 15000;
 
 export function BonusesView() {
-  const hydrated = useHydrated();
-  const user = useStore((s) => s.user);
-  const claimDaily = useStore((s) => s.claimDaily);
-  const claimRegistration = useStore((s) => s.claimRegistration);
-  const redeemPromo = useStore((s) => s.redeemPromo);
-
+  const { user, ready, refresh, setBalance } = useSession();
   const [promo, setPromo] = useState("");
   const [now, setNow] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
   const { copied, copy } = useCopy();
 
-  // A ticking clock for the daily cooldown; starts only on the client.
+  // Ticking clock for the cooldown, started on the client only.
   useEffect(() => {
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const last = user.bonuses.lastDailyClaim;
-  const ready = hydrated && now > 0 && (!last || now - last >= DAY);
+  if (ready && !user) {
+    return (
+      <EmptyState
+        icon={<LogIn size={22} />}
+        title="Войдите в аккаунт"
+        description="Бонусы начисляются на баланс аккаунта."
+        action={
+          <Link href="/login">
+            <Button>Войти</Button>
+          </Link>
+        }
+      />
+    );
+  }
+
+  const last = user?.bonuses.daily_claimed_at ?? null;
+  const streak = user?.bonuses.daily_streak ?? 0;
+  const claimable = Boolean(user) && now > 0 && (!last || now - last >= DAY);
   const remaining = last ? Math.max(0, DAY - (now - last)) : 0;
-  const streak = user.bonuses.streak;
-  const tier = user.partner?.tier;
-  const partnerBonus = tier ? TIERS[tier].dailyReward : 0;
-  const nextAmount = DAILY_BASE * Math.min(streak + 1, 7) + partnerBonus;
 
-  const refLink = refLinkFor(user.username);
+  const tier = user?.partner?.tier as keyof typeof TIERS | undefined;
+  const partnerBonus =
+    user?.partner?.daily_minor ?? (tier ? TIERS[tier].dailyReward * 100 : 0);
+  const nextAmount = DAILY_BASE_MINOR * Math.min(streak + 1, 7) + partnerBonus;
 
-  const onDaily = () => {
-    const res = claimDaily();
-    if (res.ok) {
-      toast.success(
-        `Бонус получен — день ${res.streak}`,
-        `На баланс зачислено ${formatMoney(res.amount)}`,
+  const refLink = user ? `https://zevora.example/?ref=${user.username}` : "";
+
+  const run = async (key: string, fn: () => Promise<void>) => {
+    setBusy(key);
+    try {
+      await fn();
+    } catch (err) {
+      toast.error(
+        "Не удалось",
+        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
       );
-    } else {
-      toast.error("Бонус уже получен", "Возвращайтесь завтра");
-    }
-  };
-
-  const onRegistration = () => {
-    const res = claimRegistration();
-    if (res.ok) {
-      toast.success("Бонус за регистрацию", `Зачислено ${formatMoney(res.amount)}`);
-    } else {
-      toast.error("Бонус уже получен");
-    }
-  };
-
-  const onPromo = () => {
-    const res = redeemPromo(promo);
-    if (res.ok) {
-      toast.success("Промокод применён", res.message);
-      setPromo("");
-    } else {
-      toast.error("Не удалось применить", res.message);
+    } finally {
+      setBusy(null);
     }
   };
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-      {/* ───────── daily ───────── */}
       <Card strong accent="#F5B841" className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -99,9 +84,7 @@ export function BonusesView() {
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gold-400/15 text-gold-300">
                 <Gift size={17} />
               </span>
-              <h2 className="text-[17px] font-bold text-white">
-                Ежедневный бонус
-              </h2>
+              <h2 className="text-[17px] font-bold text-white">Ежедневный бонус</h2>
             </div>
             <p className="text-[13px] text-slate-400">
               Забирайте награду каждый день — сумма растёт вместе со streak.
@@ -110,19 +93,16 @@ export function BonusesView() {
           {streak > 0 && (
             <span className="flex shrink-0 items-center gap-1.5 rounded-xl border border-gold-400/30 bg-gold-400/[0.1] px-3 py-1.5">
               <Flame size={14} className="text-gold-300" />
-              <span className="text-[13px] font-bold text-gold-300">
-                {streak}
-              </span>
+              <span className="text-[13px] font-bold text-gold-300">{streak}</span>
             </span>
           )}
         </div>
 
-        {/* streak track */}
         <div className="mt-5 grid grid-cols-7 gap-1.5">
           {Array.from({ length: 7 }).map((_, i) => {
             const day = i + 1;
-            const done = hydrated && streak >= day;
-            const next = hydrated && streak + 1 === day && ready;
+            const done = streak >= day;
+            const next = streak + 1 === day && claimable;
             return (
               <div
                 key={day}
@@ -149,11 +129,9 @@ export function BonusesView() {
                     done ? "text-white" : next ? "text-zev-200" : "text-slate-600",
                   )}
                 >
-                  {DAILY_BASE * day}
+                  {(DAILY_BASE_MINOR * day) / 100}
                 </span>
-                {done && (
-                  <Check size={10} className="absolute right-1 top-1 text-gold-300" />
-                )}
+                {done && <Check size={10} className="absolute right-1 top-1 text-gold-300" />}
               </div>
             );
           })}
@@ -164,10 +142,8 @@ export function BonusesView() {
             <PartnerBadge tier={tier} size="xs" />
             <span className="text-[12.5px] text-slate-400">
               Партнёрская надбавка:{" "}
-              <span className="font-semibold text-white">
-                +{formatMoney(partnerBonus)}
-              </span>{" "}
-              к каждому daily
+              <span className="font-semibold text-white">+{formatMinor(partnerBonus)}</span> к
+              каждому daily
             </span>
           </div>
         )}
@@ -178,10 +154,7 @@ export function BonusesView() {
             "Streak сбрасывается, если пропустить больше суток.",
             "Партнёрам Zevora к каждому daily добавляется надбавка уровня.",
           ].map((line) => (
-            <li
-              key={line}
-              className="flex gap-2.5 text-[12.5px] leading-relaxed text-slate-400"
-            >
+            <li key={line} className="flex gap-2.5 text-[12.5px] leading-relaxed text-slate-400">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gold-400/70" />
               {line}
             </li>
@@ -191,22 +164,32 @@ export function BonusesView() {
         <Button
           size="xl"
           fullWidth
-          variant={ready ? "gold" : "secondary"}
+          variant={claimable ? "gold" : "secondary"}
           className="mt-5"
-          disabled={!ready}
-          onClick={onDaily}
+          disabled={!claimable}
+          loading={busy === "daily"}
+          onClick={() =>
+            void run("daily", async () => {
+              const res = await api.daily();
+              setBalance(res.balance_minor);
+              await refresh();
+              toast.success(
+                `Бонус получен — день ${res.streak}`,
+                `На баланс зачислено ${formatMinor(res.amount_minor)}`,
+              );
+            })
+          }
           iconLeft={<Sparkles size={17} />}
         >
-          {!hydrated
+          {!ready
             ? "Загрузка…"
-            : ready
-              ? `Забрать ${formatMoney(nextAmount)}`
+            : claimable
+              ? `Забрать ${formatMinor(nextAmount)}`
               : `Следующий бонус через ${formatCountdown(remaining)}`}
         </Button>
       </Card>
 
       <div className="space-y-5">
-        {/* ───────── promo ───────── */}
         <Card className="p-5">
           <div className="mb-3 flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zev-500/15 text-zev-300">
@@ -221,12 +204,22 @@ export function BonusesView() {
             <Input
               value={promo}
               onChange={(e) => setPromo(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === "Enter" && onPromo()}
               placeholder="ZEVORA"
               className="font-mono uppercase tracking-wider"
               aria-label="Промокод"
             />
-            <Button onClick={onPromo} disabled={!promo.trim()}>
+            <Button
+              disabled={!promo.trim()}
+              loading={busy === "promo"}
+              onClick={() =>
+                void run("promo", async () => {
+                  const res = await api.promo(promo);
+                  setBalance(res.balance_minor);
+                  setPromo("");
+                  toast.success("Промокод применён", `Начислено ${formatMinor(res.amount_minor)}`);
+                })
+              }
+            >
               Применить
             </Button>
           </div>
@@ -235,42 +228,40 @@ export function BonusesView() {
           </p>
         </Card>
 
-        {/* ───────── registration ───────── */}
         <Card className="p-5">
           <div className="mb-3 flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15 text-success">
               <UserPlus size={16} />
             </span>
-            <h2 className="text-[15px] font-semibold text-white">
-              Бонус за регистрацию
-            </h2>
+            <h2 className="text-[15px] font-semibold text-white">Бонус за регистрацию</h2>
           </div>
           <p className="mb-4 text-[12.5px] text-slate-400">
             Разовая награда 500 ₽ для нового аккаунта Zevora.
           </p>
           <Button
             fullWidth
-            variant={
-              hydrated && !user.bonuses.registrationClaimed ? "primary" : "secondary"
+            variant={user && !user.bonuses.registration_claimed ? "primary" : "secondary"}
+            disabled={!user || user.bonuses.registration_claimed}
+            loading={busy === "reg"}
+            onClick={() =>
+              void run("reg", async () => {
+                const res = await api.registrationBonus();
+                setBalance(res.balance_minor);
+                await refresh();
+                toast.success("Бонус за регистрацию", `Зачислено ${formatMinor(res.amount_minor)}`);
+              })
             }
-            disabled={!hydrated || user.bonuses.registrationClaimed}
-            onClick={onRegistration}
           >
-            {hydrated && user.bonuses.registrationClaimed
-              ? "Уже получено"
-              : "Забрать 500 ₽"}
+            {user?.bonuses.registration_claimed ? "Уже получено" : "Забрать 500 ₽"}
           </Button>
         </Card>
 
-        {/* ───────── referrals ───────── */}
         <Card className="p-5">
           <div className="mb-3 flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-aqua-400/15 text-aqua-300">
               <Users size={16} />
             </span>
-            <h2 className="text-[15px] font-semibold text-white">
-              Реферальная программа
-            </h2>
+            <h2 className="text-[15px] font-semibold text-white">Реферальная программа</h2>
           </div>
           <p className="mb-3 text-[12.5px] text-slate-400">
             Приглашайте друзей и получайте 5% от их пополнений.
@@ -284,9 +275,9 @@ export function BonusesView() {
             </span>
             <button
               onClick={async () => {
-                const ok = await copy(refLink);
-                if (ok) toast.success("Ссылка скопирована");
+                if (await copy(refLink)) toast.success("Ссылка скопирована");
               }}
+              aria-label="Скопировать ссылку"
               className="shrink-0 rounded-lg border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-[11.5px] font-medium text-white transition hover:bg-white/[0.12]"
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -311,7 +302,5 @@ function formatCountdown(ms: number): string {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(
-    s,
-  ).padStart(2, "0")}`;
+  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }

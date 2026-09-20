@@ -3,55 +3,62 @@
 import { useMemo, useState } from "react";
 import { Send, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useStore } from "@/lib/store/useStore";
-import { useHydrated } from "@/hooks/useHydrated";
-import { getSkin } from "@/data/skins";
-import { RARITY } from "@/lib/rarity";
-import { SkinArt } from "@/components/art/SkinArt";
+import { ApiRequestError, api } from "@/lib/client/api";
+import { useResource } from "@/hooks/useResource";
+import { useSession } from "@/lib/client/session";
+import { SkinImage } from "@/components/art/SkinImage";
 import { Button } from "@/components/ui/Button";
-import { Input, Field } from "@/components/ui/Input";
+import { Field, Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/Modal";
-import { formatMoney } from "@/lib/format";
+import { formatMinor } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
 import { cn } from "@/lib/utils";
 
-export function WithdrawPanel() {
-  const hydrated = useHydrated();
-  const inventory = useStore((s) => s.inventory);
-  const withdrawItem = useStore((s) => s.withdrawItem);
+/** Mirrors the server-side pattern so the field validates before submit. */
+const TRADE_URL_RE =
+  /^https:\/\/steamcommunity\.com\/tradeoffer\/new\/\?partner=\d+&token=[\w-]+$/;
 
-  const [selected, setSelected] = useState<string[]>([]);
+export function WithdrawPanel() {
+  const { user } = useSession();
+  const [selected, setSelected] = useState<number[]>([]);
   const [tradeUrl, setTradeUrl] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const available = useMemo(
-    () =>
-      (hydrated ? inventory : [])
-        .filter((i) => i.status === "owned")
-        .sort((a, b) => b.price - a.price),
-    [inventory, hydrated],
+  const { data, reload } = useResource(
+    () => (user ? api.inventory({ sort: "price-desc" }) : Promise.resolve(null)),
+    [user?.id],
   );
 
-  const pending = (hydrated ? inventory : []).filter(
-    (i) => i.status === "withdrawing",
-  );
+  const all = data?.items ?? [];
+  const available = useMemo(() => all.filter((i) => i.status === "owned"), [all]);
+  const pending = useMemo(() => all.filter((i) => i.status === "withdrawing"), [all]);
 
   const total = available
-    .filter((i) => selected.includes(i.uid))
-    .reduce((s, i) => s + i.price, 0);
+    .filter((i) => selected.includes(i.id))
+    .reduce((s, i) => s + i.price_minor, 0);
 
-  const urlValid = /^https?:\/\/steamcommunity\.com\/tradeoffer\//i.test(
-    tradeUrl.trim(),
-  );
+  const urlValid = TRADE_URL_RE.test(tradeUrl.trim());
 
-  const submit = () => {
-    selected.forEach((uid) => withdrawItem(uid));
-    toast.success(
-      `Заявка на ${selected.length} предм. создана`,
-      "Предметы поступят в Steam в течение 5 минут",
-    );
-    setSelected([]);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const res = await api.withdraw(selected, tradeUrl.trim());
+      toast.success(
+        `Заявка на ${res.queued} предм. создана`,
+        "Предметы поступят в Steam в течение 5 минут",
+      );
+      setSelected([]);
+      reload();
+    } catch (err) {
+      toast.error(
+        "Не удалось создать заявку",
+        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (available.length === 0 && pending.length === 0) {
@@ -78,7 +85,7 @@ export function WithdrawPanel() {
         <Input
           value={tradeUrl}
           onChange={(e) => setTradeUrl(e.target.value)}
-          placeholder="https://steamcommunity.com/tradeoffer/new/?partner=…"
+          placeholder="https://steamcommunity.com/tradeoffer/new/?partner=123&token=abc"
           invalid={tradeUrl.length > 0 && !urlValid}
         />
       </Field>
@@ -97,15 +104,11 @@ export function WithdrawPanel() {
       {available.length > 0 && (
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[12.5px] font-medium text-slate-400">
-              Доступно к выводу
-            </p>
+            <p className="text-[12.5px] font-medium text-slate-400">Доступно к выводу</p>
             <button
               onClick={() =>
                 setSelected(
-                  selected.length === available.length
-                    ? []
-                    : available.map((i) => i.uid),
+                  selected.length === available.length ? [] : available.map((i) => i.id),
                 )
               }
               className="text-[12px] text-zev-300 transition hover:text-white"
@@ -116,33 +119,27 @@ export function WithdrawPanel() {
 
           <div className="no-scrollbar max-h-[380px] space-y-2 overflow-y-auto pr-0.5">
             {available.map((item) => {
-              const skin = getSkin(item.skinId);
-              const rarity = RARITY[skin.rarity];
-              const active = selected.includes(item.uid);
+              const active = selected.includes(item.id);
               return (
                 <button
-                  key={item.uid}
+                  key={item.id}
                   onClick={() =>
                     setSelected((p) =>
-                      p.includes(item.uid)
-                        ? p.filter((u) => u !== item.uid)
-                        : [...p, item.uid],
+                      p.includes(item.id) ? p.filter((x) => x !== item.id) : [...p, item.id],
                     )
                   }
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition",
-                    active
-                      ? "bg-white/[0.07]"
-                      : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05]",
+                    active ? "bg-white/[0.07]" : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.05]",
                   )}
-                  style={{ borderColor: active ? rarity.color : undefined }}
+                  style={{ borderColor: active ? item.rarity.color : undefined }}
                 >
                   <span
                     className={cn(
                       "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                       active ? "border-transparent" : "border-white/20",
                     )}
-                    style={{ background: active ? rarity.color : undefined }}
+                    style={{ background: active ? item.rarity.color : undefined }}
                   >
                     {active && (
                       <svg viewBox="0 0 12 12" className="h-3 w-3 text-void">
@@ -159,20 +156,26 @@ export function WithdrawPanel() {
                   </span>
 
                   <span className="h-8 w-14 shrink-0">
-                    <SkinArt skin={skin} glow={false} />
+                    <SkinImage
+                      imageUrl={item.image_url}
+                      art={item.art}
+                      label={item.market_name}
+                      glow={false}
+                    />
                   </span>
 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-medium text-white">
-                      {skin.weapon} | {skin.name}
+                      {item.market_name}
                     </span>
                     <span className="block text-[11.5px] text-slate-500">
                       {item.wear}
+                      {item.stattrak && " · StatTrak™"}
                     </span>
                   </span>
 
                   <span className="shrink-0 text-[13px] font-bold tabular-nums text-white">
-                    {formatMoney(item.price)}
+                    {formatMinor(item.price_minor)}
                   </span>
                 </button>
               );
@@ -183,11 +186,9 @@ export function WithdrawPanel() {
 
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5">
         <div className="flex items-center justify-between">
-          <span className="text-[13px] text-slate-400">
-            Выбрано {selected.length} предм.
-          </span>
+          <span className="text-[13px] text-slate-400">Выбрано {selected.length} предм.</span>
           <span className="text-[16px] font-bold tabular-nums text-white">
-            {formatMoney(total)}
+            {formatMinor(total)}
           </span>
         </div>
       </div>
@@ -196,6 +197,7 @@ export function WithdrawPanel() {
         size="xl"
         fullWidth
         disabled={selected.length === 0 || !urlValid}
+        loading={busy}
         onClick={() => setConfirm(true)}
         iconLeft={<Send size={16} />}
       >
@@ -213,9 +215,9 @@ export function WithdrawPanel() {
       <ConfirmDialog
         open={confirm}
         onClose={() => setConfirm(false)}
-        onConfirm={submit}
+        onConfirm={() => void submit()}
         title="Подтвердите вывод"
-        description={`${selected.length} предм. на сумму ${formatMoney(total)} будут отправлены на указанную ссылку обмена. Отменить заявку нельзя.`}
+        description={`${selected.length} предм. на сумму ${formatMinor(total)} будут отправлены на указанную ссылку обмена.`}
         confirmLabel="Вывести"
       />
     </div>

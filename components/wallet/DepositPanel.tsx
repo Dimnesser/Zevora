@@ -2,77 +2,70 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Bitcoin, CreditCard, Smartphone, Wallet, Check } from "lucide-react";
-import { useStore } from "@/lib/store/useStore";
+import { Bitcoin, Check, CreditCard, Smartphone, Wallet } from "lucide-react";
+import { ApiRequestError, api } from "@/lib/client/api";
+import { useSession } from "@/lib/client/session";
 import { Button } from "@/components/ui/Button";
-import { Input, Field } from "@/components/ui/Input";
-import { formatMoney } from "@/lib/format";
+import { Field, Input } from "@/components/ui/Input";
+import { formatMinor } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
 import { cn } from "@/lib/utils";
 
 const QUICK = [500, 1000, 2500, 5000, 10000, 25000];
 
+/**
+ * Bonus rates are mirrored from the server purely for display; the
+ * server recomputes them and ignores anything the client sends.
+ */
 const METHODS = [
-  {
-    id: "card",
-    name: "Банковская карта",
-    hint: "Visa · Mastercard · МИР",
-    icon: CreditCard,
-    bonus: 0,
-  },
-  {
-    id: "sbp",
-    name: "СБП",
-    hint: "Перевод по номеру телефона",
-    icon: Smartphone,
-    bonus: 0.03,
-  },
-  {
-    id: "crypto",
-    name: "Криптовалюта",
-    hint: "BTC · ETH · USDT",
-    icon: Bitcoin,
-    bonus: 0.07,
-  },
+  { id: "card", name: "Банковская карта", hint: "Visa · Mastercard · МИР", icon: CreditCard, bonus: 0 },
+  { id: "sbp", name: "СБП", hint: "Перевод по номеру телефона", icon: Smartphone, bonus: 0.03 },
+  { id: "crypto", name: "Криптовалюта", hint: "BTC · ETH · USDT", icon: Bitcoin, bonus: 0.07 },
 ];
 
 const MIN = 100;
 const MAX = 300_000;
 
-export function DepositPanel() {
-  const deposit = useStore((s) => s.deposit);
+export function DepositPanel({ onDone }: { onDone?: () => void }) {
+  const { setBalance } = useSession();
   const [amount, setAmount] = useState(1000);
   const [method, setMethod] = useState(METHODS[0]);
   const [processing, setProcessing] = useState(false);
 
-  const valid = amount >= MIN && amount <= MAX;
-  const bonus = Math.round(amount * method.bonus);
-  const credited = amount + bonus;
+  const valid = Number.isInteger(amount) && amount >= MIN && amount <= MAX;
+  const bonus = Math.round(amount * 100 * method.bonus);
+  const credited = amount * 100 + bonus;
 
   const submit = async () => {
     if (!valid) {
-      toast.error("Неверная сумма", `Минимум ${MIN} ₽, максимум ${formatMoney(MAX)}`);
+      toast.error("Неверная сумма", `Минимум ${MIN} ₽, максимум ${MAX.toLocaleString("ru-RU")} ₽`);
       return;
     }
     setProcessing(true);
-    // Stands in for the payment-provider redirect.
-    await new Promise((r) => setTimeout(r, 900));
-    deposit(credited, method.name);
-    setProcessing(false);
-    toast.success(
-      "Баланс пополнен",
-      bonus > 0
-        ? `${formatMoney(amount)} + бонус ${formatMoney(bonus)}`
-        : formatMoney(amount),
-    );
+    try {
+      const res = await api.deposit(amount, method.id);
+      setBalance(res.balance_minor);
+      toast.success(
+        "Баланс пополнен",
+        res.bonus_minor > 0
+          ? `${formatMinor(res.credited_minor - res.bonus_minor)} + бонус ${formatMinor(res.bonus_minor)}`
+          : formatMinor(res.credited_minor),
+      );
+      onDone?.();
+    } catch (err) {
+      toast.error(
+        "Не удалось пополнить",
+        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="mb-3 text-[12.5px] font-medium text-slate-400">
-          Быстрый выбор
-        </p>
+        <p className="mb-3 text-[12.5px] font-medium text-slate-400">Быстрый выбор</p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {QUICK.map((v) => (
             <button
@@ -91,23 +84,21 @@ export function DepositPanel() {
         </div>
       </div>
 
-      <Field label="Сумма пополнения" hint={`От ${MIN} ₽ до ${formatMoney(MAX)}`}>
+      <Field label="Сумма пополнения" hint={`От ${MIN} ₽ до ${MAX.toLocaleString("ru-RU")} ₽`}>
         <Input
           type="number"
           inputMode="numeric"
           min={MIN}
           max={MAX}
           value={amount || ""}
-          onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
+          onChange={(e) => setAmount(Math.max(0, Math.floor(Number(e.target.value))))}
           suffix="₽"
           invalid={amount > 0 && !valid}
         />
       </Field>
 
       <div>
-        <p className="mb-3 text-[12.5px] font-medium text-slate-400">
-          Способ оплаты
-        </p>
+        <p className="mb-3 text-[12.5px] font-medium text-slate-400">Способ оплаты</p>
         <div className="grid gap-2.5 sm:grid-cols-3">
           {METHODS.map((m) => {
             const active = m.id === method.id;
@@ -122,31 +113,19 @@ export function DepositPanel() {
                     : "border-white/[0.08] bg-white/[0.025] hover:border-white/20",
                 )}
               >
-                {active && (
-                  <motion.span
-                    layoutId="deposit-method"
-                    className="absolute inset-0 rounded-2xl border border-zev-400/60"
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  />
-                )}
                 <span className="relative flex w-full items-center justify-between">
                   <m.icon size={18} className={active ? "text-zev-300" : "text-slate-500"} />
-                  {m.bonus > 0 && (
+                  {m.bonus > 0 ? (
                     <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-[10px] font-bold text-success">
                       +{Math.round(m.bonus * 100)}%
                     </span>
-                  )}
-                  {active && m.bonus === 0 && (
-                    <Check size={14} className="text-zev-300" />
+                  ) : (
+                    active && <Check size={14} className="text-zev-300" />
                   )}
                 </span>
                 <span className="relative">
-                  <span className="block text-[13.5px] font-semibold text-white">
-                    {m.name}
-                  </span>
-                  <span className="block text-[11.5px] text-slate-500">
-                    {m.hint}
-                  </span>
+                  <span className="block text-[13.5px] font-semibold text-white">{m.name}</span>
+                  <span className="block text-[11.5px] text-slate-500">{m.hint}</span>
                 </span>
               </button>
             );
@@ -155,16 +134,12 @@ export function DepositPanel() {
       </div>
 
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5">
-        <Row label="Сумма" value={formatMoney(amount)} />
+        <Row label="Сумма" value={formatMinor(amount * 100)} />
         {bonus > 0 && (
-          <Row
-            label={`Бонус ${method.name}`}
-            value={`+${formatMoney(bonus)}`}
-            accent="#2FD98A"
-          />
+          <Row label={`Бонус ${method.name}`} value={`+${formatMinor(bonus)}`} accent="#2FD98A" />
         )}
         <div className="my-2.5 h-px bg-white/[0.07]" />
-        <Row label="К зачислению" value={formatMoney(credited)} bold />
+        <Row label="К зачислению" value={formatMinor(credited)} bold />
       </div>
 
       <Button
@@ -172,15 +147,14 @@ export function DepositPanel() {
         fullWidth
         disabled={!valid}
         loading={processing}
-        onClick={submit}
+        onClick={() => void submit()}
         iconLeft={<Wallet size={17} />}
       >
-        Пополнить на {formatMoney(credited)}
+        Пополнить на {formatMinor(credited)}
       </Button>
 
       <p className="text-center text-[11.5px] leading-relaxed text-slate-600">
-        Демонстрационный режим: реальные платежи не проводятся, баланс
-        виртуальный.
+        Демонстрационный режим: реальные платежи не проводятся, баланс виртуальный.
       </p>
     </div>
   );
@@ -201,10 +175,7 @@ function Row({
     <div className="flex items-center justify-between py-1">
       <span className="text-[13px] text-slate-400">{label}</span>
       <span
-        className={cn(
-          "tabular-nums",
-          bold ? "text-[16px] font-bold" : "text-[13.5px] font-medium",
-        )}
+        className={cn("tabular-nums", bold ? "text-[16px] font-bold" : "text-[13.5px] font-medium")}
         style={{ color: accent ?? "#fff" }}
       >
         {value}
