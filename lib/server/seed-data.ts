@@ -19,13 +19,14 @@ export interface SeedRarity {
 }
 
 export const RARITIES: SeedRarity[] = [
-  { slug: "consumer", name: "Consumer Grade", color: "#B0C3D9", default_weight: 25000, effect: "none", sort_order: 1 },
-  { slug: "industrial", name: "Industrial Grade", color: "#5E98D9", default_weight: 12000, effect: "none", sort_order: 2 },
-  { slug: "milspec", name: "Mil-Spec Grade", color: "#4B69FF", default_weight: 6000, effect: "glow", sort_order: 3 },
-  { slug: "restricted", name: "Restricted", color: "#8847FF", default_weight: 2000, effect: "glow", sort_order: 4 },
-  { slug: "classified", name: "Classified", color: "#D32CE6", default_weight: 600, effect: "shine", sort_order: 5 },
-  { slug: "covert", name: "Covert", color: "#EB4B4B", default_weight: 200, effect: "pulse", sort_order: 6 },
-  { slug: "special", name: "Rare Special Item", color: "#FFD700", default_weight: 25, effect: "aurora", sort_order: 7 },
+  { slug: "consumer", name: "Consumer Grade", color: "#b0c3d9", default_weight: 25000, effect: "none", sort_order: 1 },
+  { slug: "industrial", name: "Industrial Grade", color: "#5e98d9", default_weight: 12000, effect: "none", sort_order: 2 },
+  { slug: "milspec", name: "Mil-Spec Grade", color: "#4b69ff", default_weight: 6000, effect: "glow", sort_order: 3 },
+  { slug: "restricted", name: "Restricted", color: "#8847ff", default_weight: 2000, effect: "glow", sort_order: 4 },
+  { slug: "classified", name: "Classified", color: "#d32ce6", default_weight: 600, effect: "shine", sort_order: 5 },
+  { slug: "covert", name: "Covert", color: "#eb4b4b", default_weight: 200, effect: "pulse", sort_order: 6 },
+  { slug: "extraordinary", name: "Extraordinary", color: "#caab05", default_weight: 40, effect: "aurora", sort_order: 7 },
+  { slug: "contraband", name: "Contraband", color: "#e4ae39", default_weight: 10, effect: "aurora", sort_order: 8 },
 ];
 
 export interface SeedSkin {
@@ -42,13 +43,23 @@ export interface SeedSkin {
 
 export const SKINS: SeedSkin[] = [
   // ───────────── Rare Special Item ─────────────
-  { slug: "sport-gloves-pandoras-box", market_name: "★ Sport Gloves | Pandora's Box", weapon: "★ Sport Gloves", finish: "Pandora's Box", rarity: "special", price: 214900, stattrak: false, art: { kind: "gloves", pattern: "marble", a: "#C0509A", b: "#3A1430" } },
-  { slug: "butterfly-knife-fade", market_name: "★ Butterfly Knife | Fade", weapon: "★ Butterfly Knife", finish: "Fade", rarity: "special", price: 181500, stattrak: true, art: { kind: "knife-butterfly", pattern: "fade", a: "#FF8A3D", b: "#B44AC0" } },
-  { slug: "karambit-doppler", market_name: "★ Karambit | Doppler", weapon: "★ Karambit", finish: "Doppler", rarity: "special", price: 96400, stattrak: true, art: { kind: "knife-karambit", pattern: "doppler", a: "#7C5CFF", b: "#1B2A6B" } },
-  { slug: "specialist-gloves-fade", market_name: "★ Specialist Gloves | Fade", weapon: "★ Specialist Gloves", finish: "Fade", rarity: "special", price: 92300, stattrak: false, art: { kind: "gloves", pattern: "fade", a: "#FF7A18", b: "#C23BD6" } },
-  { slug: "m9-bayonet-marble-fade", market_name: "★ M9 Bayonet | Marble Fade", weapon: "★ M9 Bayonet", finish: "Marble Fade", rarity: "special", price: 86700, stattrak: true, art: { kind: "knife-bayonet", pattern: "marble", a: "#FF4D5E", b: "#2B6BD6" } },
-  { slug: "talon-knife-slaughter", market_name: "★ Talon Knife | Slaughter", weapon: "★ Talon Knife", finish: "Slaughter", rarity: "special", price: 71200, stattrak: true, art: { kind: "knife-karambit", pattern: "splatter", a: "#D6304A", b: "#2A0A10" } },
-  { slug: "bayonet-tiger-tooth", market_name: "★ Bayonet | Tiger Tooth", weapon: "★ Bayonet", finish: "Tiger Tooth", rarity: "special", price: 55800, stattrak: true, art: { kind: "knife-bayonet", pattern: "stripe", a: "#F5B841", b: "#1A1405" } },
+  { slug: "sport-gloves-pandoras-box", market_name: "★ Sport Gloves | Pandora's Box", weapon: "★ Sport Gloves", finish: "Pandora's Box", rarity: "covert", price: 214900, stattrak: false, art: { kind: "gloves", pattern: "marble", a: "#C0509A", b: "#3A1430" } },
+  { slug: "butterfly-knife-fade", market_name: "★ Butterfly Knife | Fade", weapon: "★ Butterfly Knife", finish: "Fade", rarity: "covert", price: 181500, stattrak: true, art: { kind: "knife-butterfly", pattern: "fade", a: "#FF8A3D", b: "#B44AC0" } },
+  { slug: "karambit-doppler", market_name: "★ Karambit | Doppler", weapon: "★ Karambit", finish: "Doppler", rarity: "covert", price: 96400, stattrak: true, art: { kind: "knife-karambit", pattern: "doppler", a: "#7C5CFF", b: "#1B2A6B" } },
+  { slug: "specialist-gloves-fade", market_name: "★ Specialist Gloves | Fade", weapon: "★ Specialist Gloves", finish: "Fade", rarity: "covert", price: 92300, stattrak: false, art: { kind: "gloves", pattern: "fade", a: "#FF7A18", b: "#C23BD6" } },
+  { slug: "m9-bayonet-marble-fade", market_name: "★ M9 Bayonet | Marble Fade", weapon: "★ M9 Bayonet", finish: "Marble Fade", rarity: "covert", price: 86700, stattrak: true, art: { kind: "knife-bayonet", pattern: "marble", a: "#FF4D5E", b: "#2B6BD6" } },
+  { slug: "talon-knife-slaughter", market_name: "★ Talon Knife | Slaughter", weapon: "★ Talon Knife", finish: "Slaughter", rarity: "covert", price: 71200, stattrak: true, art: { kind: "knife-karambit", pattern: "splatter", a: "#D6304A", b: "#2A0A10" } },
+  { slug: "bayonet-tiger-tooth", market_name: "★ Bayonet | Tiger Tooth", weapon: "★ Bayonet", finish: "Tiger Tooth", rarity: "covert", price: 55800, stattrak: true, art: { kind: "knife-bayonet", pattern: "stripe", a: "#F5B841", b: "#1A1405" } },
+
+  // ───────────── added for the reference set ─────────────
+  { slug: "m4a4-howl", market_name: "M4A4 | Howl", weapon: "M4A4", finish: "Howl", rarity: "contraband", price: 412000, stattrak: true, art: { kind: "rifle-m4", pattern: "splatter", a: "#E03B2A", b: "#1A1010" } },
+  { slug: "awp-dragon-lore", market_name: "AWP | Dragon Lore", weapon: "AWP", finish: "Dragon Lore", rarity: "covert", price: 1180000, stattrak: false, art: { kind: "sniper", pattern: "marble", a: "#C4A03B", b: "#2A2410" } },
+  { slug: "ak-47-the-empress", market_name: "AK-47 | The Empress", weapon: "AK-47", finish: "The Empress", rarity: "covert", price: 6800, stattrak: true, art: { kind: "rifle-ak", pattern: "marble", a: "#C43B6B", b: "#2A1140" } },
+  { slug: "m4a1s-player-two", market_name: "M4A1-S | Player Two", weapon: "M4A1-S", finish: "Player Two", rarity: "covert", price: 5200, stattrak: true, art: { kind: "rifle-m4", pattern: "stripe", a: "#E86BA8", b: "#2A1A3A" } },
+  { slug: "m4a4-neo-noir", market_name: "M4A4 | Neo-Noir", weapon: "M4A4", finish: "Neo-Noir", rarity: "covert", price: 4300, stattrak: true, art: { kind: "rifle-m4", pattern: "marble", a: "#C23BD6", b: "#14102A" } },
+  { slug: "awp-lightning-strike", market_name: "AWP | Lightning Strike", weapon: "AWP", finish: "Lightning Strike", rarity: "covert", price: 8900, stattrak: false, art: { kind: "sniper", pattern: "stripe", a: "#3BC4E0", b: "#101A28" } },
+  { slug: "glock-18-fade", market_name: "Glock-18 | Fade", weapon: "Glock-18", finish: "Fade", rarity: "restricted", price: 9400, stattrak: false, art: { kind: "pistol", pattern: "fade", a: "#FF7A18", b: "#C23BD6" } },
+  { slug: "desert-eagle-blaze", market_name: "Desert Eagle | Blaze", weapon: "Desert Eagle", finish: "Blaze", rarity: "restricted", price: 43000, stattrak: false, art: { kind: "pistol-heavy", pattern: "splatter", a: "#FF6B1A", b: "#2A0F05" } },
 
   // ───────────── Covert ─────────────
   { slug: "m4a1s-printstream", market_name: "M4A1-S | Printstream", weapon: "M4A1-S", finish: "Printstream", rarity: "covert", price: 14200, stattrak: true, art: { kind: "rifle-m4", pattern: "marble", a: "#E8E8F0", b: "#14141C" } },
@@ -134,8 +145,10 @@ export const CASES: SeedCase[] = [
     tags: ["cheap", "new"],
     art: { emblem: "bolt", a: "#22D3EE", b: "#0D1020" },
     items: {
-      "p250-sand-dune": 22000,
-      "p2000-grassland": 20000,
+      "p250-sand-dune": 20000,
+      "dual-berettas-contractor": 6000,
+      "sawed-off-forest-ddpat": 6000,
+      "p2000-grassland": 18000,
       "mp9-storm": 18000,
       "nova-polar-mesh": 12000,
       "pp-bizon-urban-dashed": 8000,
@@ -159,6 +172,8 @@ export const CASES: SeedCase[] = [
       "p2000-handgun": 13600,
       "tec-9-isaac": 12000,
       "nova-predator": 11000,
+      "mag-7-firestarter": 6000,
+      "scar-20-cardiac": 4000,
       "mp9-rose-iron": 10000,
       "famas-roll-cage": 9000,
       "p250-nevermore": 9000,
@@ -262,6 +277,35 @@ export const CASES: SeedCase[] = [
       "specialist-gloves-fade": 130,
       "butterfly-knife-fade": 70,
       "sport-gloves-pandoras-box": 30,
+    },
+  },
+  {
+    slug: "legacy-vault",
+    name: "Legacy Vault",
+    description:
+      "Легендарные финиши CS2 — Dragon Lore, Howl и Blaze в одном пуле. Самый высокий потолок на площадке.",
+    price: 19900,
+    tags: ["premium", "rare"],
+    art: { emblem: "crown", a: "#E4AE39", b: "#2A1A05" },
+    items: {
+      "ak-47-redline": 14000,
+      "m4a4-neo-noir": 12000,
+      "awp-hyper-beast": 11000,
+      "m4a1s-player-two": 10000,
+      "ak-47-the-empress": 9000,
+      "usp-s-kill-confirmed": 8500,
+      "ak-47-asiimov": 8000,
+      "desert-eagle-blaze": 7370,
+      "glock-18-fade": 7000,
+      "awp-lightning-strike": 6500,
+      "awp-asiimov": 5000,
+      "m4a1s-printstream": 3500,
+      "bayonet-tiger-tooth": 2345,
+      "ak-47-vulcan": 1400,
+      "m9-bayonet-marble-fade": 1340,
+      "karambit-doppler": 837,
+      "m4a4-howl": 134,
+      "awp-dragon-lore": 34,
     },
   },
   {

@@ -71,8 +71,17 @@ CREATE TABLE IF NOT EXISTS rarities (
 CREATE TABLE IF NOT EXISTS skins (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   slug             TEXT    NOT NULL UNIQUE,
-  -- Full market name, e.g. "AK-47 | Redline".
+  -- Display name, e.g. "AK-47 | Redline".
   market_name      TEXT    NOT NULL UNIQUE,
+  -- Exact Steam market hash name. This is the key the image importer
+  -- matches on, so it must stay byte-identical to Valve's naming.
+  market_hash_name TEXT,
+  -- Canonical artwork for this skin, filled in by `npm run import:skins`.
+  image_url        TEXT,
+  image_source     TEXT    CHECK (image_source IN ('steam-cdn','local','custom')),
+  image_status     TEXT    NOT NULL DEFAULT 'pending'
+                     CHECK (image_status IN ('pending','valid','broken','missing')),
+  image_checked_at INTEGER,
   weapon           TEXT    NOT NULL,
   finish           TEXT    NOT NULL,
   rarity_id        INTEGER NOT NULL REFERENCES rarities(id) ON DELETE RESTRICT,
@@ -89,16 +98,27 @@ CREATE TABLE IF NOT EXISTS skins (
 );
 CREATE INDEX IF NOT EXISTS idx_skins_rarity ON skins(rarity_id);
 CREATE INDEX IF NOT EXISTS idx_skins_price ON skins(base_price_minor);
+CREATE INDEX IF NOT EXISTS idx_skins_hash ON skins(market_hash_name);
+CREATE INDEX IF NOT EXISTS idx_skins_img_status ON skins(image_status);
 
--- One skin can carry several images (Steam CDN, local upload, …).
+-- Import log: every artwork variant known for a skin, with the result of
+-- the last validation. `skins.image_url` names the one actually shown;
+-- this table keeps the evidence behind that choice.
 CREATE TABLE IF NOT EXISTS skin_images (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  skin_id    INTEGER NOT NULL REFERENCES skins(id) ON DELETE CASCADE,
-  url        TEXT    NOT NULL,
-  source     TEXT    NOT NULL DEFAULT 'steam'
-               CHECK (source IN ('steam','local','custom')),
-  is_primary INTEGER NOT NULL DEFAULT 1,
-  created_at INTEGER NOT NULL
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  skin_id      INTEGER NOT NULL REFERENCES skins(id) ON DELETE CASCADE,
+  url          TEXT    NOT NULL,
+  source       TEXT    NOT NULL DEFAULT 'steam-cdn'
+                 CHECK (source IN ('steam-cdn','local','custom')),
+  is_primary   INTEGER NOT NULL DEFAULT 1,
+  http_status  INTEGER,
+  content_type TEXT,
+  bytes        INTEGER,
+  width        INTEGER,
+  height       INTEGER,
+  checked_at   INTEGER,
+  created_at   INTEGER NOT NULL,
+  UNIQUE (skin_id, url)
 );
 CREATE INDEX IF NOT EXISTS idx_skin_images_skin ON skin_images(skin_id, is_primary);
 

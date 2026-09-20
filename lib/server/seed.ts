@@ -4,6 +4,24 @@ import { getDb, now, transact } from "@/lib/server/db";
 import { hashPassword } from "@/lib/server/auth";
 import { toMinor } from "@/lib/server/money";
 import { CASES, RARITIES, SKINS } from "@/lib/server/seed-data";
+import SKIN_IMAGES from "@/lib/server/skin-images.json";
+
+/**
+ * Snapshot of real CS2 artwork, taken from ByMykel/CSGO-API.
+ *
+ * Bundling it means a fresh install shows Valve's own renders straight
+ * away, with no import step to remember. `npm run import:skins` refreshes
+ * it against the live source and validates every URL.
+ */
+interface SkinImageEntry {
+  market_hash_name: string;
+  image: string;
+  rarity: string | null;
+  min_float: number;
+  max_float: number;
+}
+
+const IMAGES = SKIN_IMAGES as Record<string, SkinImageEntry>;
 
 /**
  * Idempotent seed.
@@ -49,23 +67,36 @@ export function seed(opts: { force?: boolean } = {}): void {
     // ── skins ──
     const insertSkin = db.prepare(
       `INSERT INTO skins
-         (slug, market_name, weapon, finish, rarity_id, base_price_minor,
-          stattrak_capable, art_kind, art_pattern, art_color_a, art_color_b,
+         (slug, market_name, market_hash_name, weapon, finish, rarity_id,
+          base_price_minor, stattrak_capable, art_kind, art_pattern,
+          art_color_a, art_color_b, image_url, image_source, image_status,
           created_at, updated_at)
-       VALUES (@slug, @market_name, @weapon, @finish, @rarity_id, @price_minor,
-               @stattrak, @kind, @pattern, @a, @b, @ts, @ts)
+       VALUES (@slug, @market_name, @hash, @weapon, @finish, @rarity_id,
+               @price_minor, @stattrak, @kind, @pattern, @a, @b,
+               @image_url, @image_source, @image_status, @ts, @ts)
        ON CONFLICT(slug) DO UPDATE SET
          market_name = excluded.market_name,
+         market_hash_name = excluded.market_hash_name,
          rarity_id = excluded.rarity_id,
-         updated_at = excluded.updated_at`,
+         updated_at = excluded.updated_at,
+         -- Artwork already imported and validated is left alone; only a
+         -- row that never got one is filled from the snapshot.
+         image_url = COALESCE(skins.image_url, excluded.image_url),
+         image_source = COALESCE(skins.image_source, excluded.image_source)`,
     );
 
     for (const s of SKINS) {
-      const rarityId = rarityIds.get(s.rarity);
-      if (!rarityId) throw new Error(`seed: unknown rarity ${s.rarity}`);
+      const art = IMAGES[s.market_name];
+      // The snapshot carries Valve's real rarity; the seed's own value is
+      // only a fallback for a skin the snapshot does not cover.
+      const raritySlug = art?.rarity ?? s.rarity;
+      const rarityId = rarityIds.get(raritySlug) ?? rarityIds.get(s.rarity);
+      if (!rarityId) throw new Error(`seed: unknown rarity ${raritySlug}`);
+
       insertSkin.run({
         slug: s.slug,
         market_name: s.market_name,
+        hash: art?.market_hash_name ?? s.market_name,
         weapon: s.weapon,
         finish: s.finish,
         rarity_id: rarityId,
@@ -75,6 +106,9 @@ export function seed(opts: { force?: boolean } = {}): void {
         pattern: s.art.pattern,
         a: s.art.a,
         b: s.art.b,
+        image_url: art?.image ?? null,
+        image_source: art ? "steam-cdn" : null,
+        image_status: art ? "valid" : "missing",
         ts,
       });
     }

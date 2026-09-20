@@ -32,9 +32,7 @@ export const GET = handler(async (req: Request) => {
               s.art_kind, s.art_pattern, s.art_color_a, s.art_color_b,
               r.slug AS rarity_slug, r.name AS rarity_name,
               r.color AS rarity_color, r.default_weight,
-              (SELECT si.url FROM skin_images si
-                WHERE si.skin_id = s.id AND si.is_primary = 1
-                ORDER BY si.id LIMIT 1) AS image_url
+              s.image_url
          FROM skins s
          JOIN rarities r ON r.id = s.rarity_id
          ${whereSql}

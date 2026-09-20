@@ -113,9 +113,7 @@ export function getCaseItems(caseId: number): CaseItemDetail[] {
               r.slug AS rarity_slug, r.name AS rarity_name,
               r.color AS rarity_color, r.effect AS rarity_effect,
               r.sort_order AS rarity_order,
-              (SELECT si.url FROM skin_images si
-                WHERE si.skin_id = s.id AND si.is_primary = 1
-                ORDER BY si.id LIMIT 1) AS image_url
+              s.image_url
          FROM case_items ci
          JOIN skins s ON s.id = ci.skin_id
          JOIN rarities r ON r.id = s.rarity_id
@@ -320,11 +318,8 @@ export function openCase(
     ).run(ts, user.id);
 
     const image = db
-      .prepare(
-        `SELECT url FROM skin_images
-          WHERE skin_id = ? AND is_primary = 1 ORDER BY id LIMIT 1`,
-      )
-      .get(won.skin_id) as { url: string } | undefined;
+      .prepare(`SELECT image_url AS url FROM skins WHERE id = ?`)
+      .get(won.skin_id) as { url: string | null } | undefined;
 
     const result: OpenResult = {
       opening_id: Number(opening.lastInsertRowid),

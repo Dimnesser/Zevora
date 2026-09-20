@@ -43,6 +43,9 @@ function SkinArtBase({ art, label, className, glow = true }: SkinArtProps) {
       className={cn("h-full w-full", className)}
       role="img"
       aria-label={label ?? "Скин CS2"}
+      // Marks the fallback so a browser check can assert it never
+      // stands in for a real render when the CDN is reachable.
+      data-skin-art=""
       style={
         glow
           ? { filter: `drop-shadow(0 10px 22px ${c1}45)` }

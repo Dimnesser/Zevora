@@ -34,9 +34,7 @@ const SELECT_OPENING = `
          s.market_name, s.weapon, s.finish,
          s.art_kind, s.art_pattern, s.art_color_a, s.art_color_b,
          r.slug AS rarity_slug, r.name AS rarity_name, r.color AS rarity_color,
-         (SELECT si.url FROM skin_images si
-           WHERE si.skin_id = s.id AND si.is_primary = 1
-           ORDER BY si.id LIMIT 1) AS image_url
+         s.image_url
     FROM case_openings o
     JOIN users u ON u.id = o.user_id
     JOIN cases c ON c.id = o.case_id

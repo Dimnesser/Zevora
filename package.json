@@ -9,10 +9,13 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:reset": "node scripts/db-reset.mjs",
-    "skins:images": "node scripts/fetch-skin-images.mjs",
     "test:api": "bash scripts/run-tests.sh",
     "test:probability": "tsx --conditions=react-server scripts/simulate.mts",
-    "test:simulate": "node scripts/simulate-api.mjs"
+    "test:simulate": "node scripts/simulate-api.mjs",
+    "import:skins": "node scripts/import-skins.mjs",
+    "verify:images": "node scripts/verify-images.mjs",
+    "verify:browser": "node scripts/check-browser-images.mjs",
+    "import:skins:local": "node scripts/import-skins.mjs --download --force"
   },
   "dependencies": {
     "@types/better-sqlite3": "^9.6.0",

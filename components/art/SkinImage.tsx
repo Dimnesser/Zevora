@@ -6,7 +6,7 @@ import { SkinArt } from "@/components/art/SkinArt";
 import { cn } from "@/lib/utils";
 
 interface SkinImageProps {
-  /** Steam CDN URL, when the catalogue has one for this skin. */
+  /** `skins.image_url`: the Valve render, or a local cache path. */
   imageUrl?: string | null;
   art: ArtSpec;
   label?: string;
@@ -17,9 +17,11 @@ interface SkinImageProps {
 /**
  * Renders a skin.
  *
- * Real Steam artwork is used whenever the skin has an image row. Until
- * `npm run skins:images` has filled those in — or if a URL 404s — the
- * procedural SVG renderer takes over, so a skin is never a blank box.
+ * The real Valve render is what ships: every catalogue row carries an
+ * `image_url`, filled by the seed snapshot and refreshed by
+ * `npm run import:skins`. The procedural SVG renderer is a safety net
+ * only — it appears if a row somehow has no URL, or if the browser
+ * fails to load one — so a skin is never a blank box.
  */
 function SkinImageBase({
   imageUrl,

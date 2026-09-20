@@ -68,9 +68,7 @@ export function listInventory(opts: {
               r.color AS rarity_color, r.effect AS rarity_effect,
               r.sort_order AS rarity_order,
               c.name AS source_case_name, c.slug AS source_case_slug,
-              (SELECT si.url FROM skin_images si
-                WHERE si.skin_id = s.id AND si.is_primary = 1
-                ORDER BY si.id LIMIT 1) AS image_url
+              s.image_url
          FROM inventory_items i
          JOIN skins s ON s.id = i.skin_id
          JOIN rarities r ON r.id = s.rarity_id

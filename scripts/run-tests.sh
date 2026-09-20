@@ -10,17 +10,27 @@ PORT="${PORT:-3100}"
 DB_DIR="$(mktemp -d)"
 export ZEVORA_DB_FILE="$DB_DIR/test.db"
 
+# `next start` spawns a child `next-server`, so killing the wrapper alone
+# leaves the real listener holding the port. A survivor would keep serving
+# the previous run's database and settings, and the next run would silently
+# test it instead — so the whole process group goes, and the port is
+# checked before anything starts.
 cleanup() {
-  [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
+  [[ -n "${SERVER_PID:-}" ]] && kill -- "-$SERVER_PID" 2>/dev/null || true
   rm -rf "$DB_DIR"
 }
 trap cleanup EXIT
+
+if curl -s -o /dev/null --max-time 2 "http://localhost:$PORT/api/cases"; then
+  echo "порт $PORT уже занят — остановите тот процесс или задайте PORT=" >&2
+  exit 1
+fi
 
 echo "→ сборка"
 npx next build >/dev/null
 
 echo "→ запуск сервера на :$PORT (БД: $ZEVORA_DB_FILE)"
-npx next start -p "$PORT" >"$DB_DIR/server.log" 2>&1 &
+setsid npx next start -p "$PORT" >"$DB_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 
 for _ in $(seq 1 30); do

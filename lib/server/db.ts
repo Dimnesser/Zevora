@@ -3,6 +3,7 @@ import "server-only";
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { runMigrations } from "@/lib/server/migrations";
 
 /**
  * Single shared SQLite handle.
@@ -42,6 +43,8 @@ function openDatabase(): Database.Database {
     "utf8",
   );
   db.exec(schema);
+  // Brings a database created by an earlier version up to date.
+  runMigrations(db);
 
   return db;
 }
