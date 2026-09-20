@@ -10,10 +10,12 @@
  *   node scripts/check-browser-images.mjs
  *   BASE=http://localhost:3000 node scripts/check-browser-images.mjs
  *
- * If the image host is unreachable (a sandbox or CI box that blocks
- * *.steamstatic.com), the run continues with the CDN stubbed: the URL
- * under test stays the app's own, only the bytes are served locally, so
- * the wiring is still proven end to end. The summary says which mode ran.
+ * Artwork normally ships as cached files under public/skins, so the
+ * check runs against the real bytes. If the catalogue is pointed at a
+ * remote render host instead and that host is unreachable (a sandbox or
+ * CI box), the run continues with the host stubbed: the URL under test
+ * stays the app's own, only the bytes are served locally. The summary
+ * says which mode ran.
  */
 import { createRequire } from "node:module";
 import zlib from "node:zlib";
@@ -88,13 +90,14 @@ async function main() {
   }
 
   /* Pick any catalogue URL to probe the host with. */
-  const probe = await api("/api/admin/skins").then((r) => r.json?.skins?.[0]?.image_url).catch(() => null);
-  const sample = probe ?? (await api(`/api/cases/${cases.json.cases[0].slug}`))
+  const sample = (await api(`/api/cases/${cases.json.cases[0].slug}`))
     .json?.items?.find((i) => i.image_url)?.image_url;
-  const live = sample ? await cdnReachable(sample) : false;
+  const cached = Boolean(sample?.startsWith("/"));
+  const live = cached || (sample ? await cdnReachable(new URL(sample, BASE).href) : false);
 
-  console.log(live
-    ? `${g.ok}режим: настоящая загрузка с CDN${g.off}`
+  console.log(
+    cached ? `${g.ok}режим: локальные файлы из public/skins${g.off}`
+    : live ? `${g.ok}режим: настоящая загрузка с CDN${g.off}`
     : `${g.dim}режим: хост изображений недоступен из этой среды — байты подменяются локально, URL остаются настоящими${g.off}`);
 
   const chromium = loadChromium();
@@ -103,7 +106,7 @@ async function main() {
 
   if (!live) {
     const png = standInPng();
-    await ctx.route("**/*.steamstatic.com/**", (r) =>
+    await ctx.route("**/raw.githubusercontent.com/**", (r) =>
       r.fulfill({ status: 200, contentType: "image/png", body: png }));
   }
 
@@ -140,7 +143,7 @@ async function main() {
       src: n.currentSrc || n.getAttribute("src") || "",
       w: n.naturalWidth,
     })));
-    const skins = imgs.filter((i) => /steamstatic\.com|^\/skins\//.test(i.src));
+    const skins = imgs.filter((i) => /\/skins\/|raw\.githubusercontent\.com/.test(i.src));
     const fallbacks = await page.locator("svg[data-skin-art]").count();
     for (const i of skins) if (i.alt) seen.set(i.alt, i.src);
     rows.push({ label, total: skins.length, decoded: skins.filter((i) => i.w > 0).length, fallbacks });

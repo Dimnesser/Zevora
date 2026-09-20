@@ -78,7 +78,9 @@ CREATE TABLE IF NOT EXISTS skins (
   market_hash_name TEXT,
   -- Canonical artwork for this skin, filled in by `npm run import:skins`.
   image_url        TEXT,
-  image_source     TEXT    CHECK (image_source IN ('steam-cdn','local','custom')),
+  -- 'cdn'    artwork served from the upstream render host
+  -- 'local'  cached under public/skins by `npm run import:skins`
+  image_source     TEXT    CHECK (image_source IN ('cdn','local','custom')),
   image_status     TEXT    NOT NULL DEFAULT 'pending'
                      CHECK (image_status IN ('pending','valid','broken','missing')),
   image_checked_at INTEGER,
@@ -108,8 +110,8 @@ CREATE TABLE IF NOT EXISTS skin_images (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   skin_id      INTEGER NOT NULL REFERENCES skins(id) ON DELETE CASCADE,
   url          TEXT    NOT NULL,
-  source       TEXT    NOT NULL DEFAULT 'steam-cdn'
-                 CHECK (source IN ('steam-cdn','local','custom')),
+  source       TEXT    NOT NULL DEFAULT 'cdn'
+                 CHECK (source IN ('cdn','local','custom')),
   is_primary   INTEGER NOT NULL DEFAULT 1,
   http_status  INTEGER,
   content_type TEXT,

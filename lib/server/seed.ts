@@ -15,7 +15,11 @@ import SKIN_IMAGES from "@/lib/server/skin-images.json";
  */
 interface SkinImageEntry {
   market_hash_name: string;
+  /** What the site loads: the cached file, or the upstream render. */
   image: string;
+  source: "local" | "cdn";
+  /** The upstream render this entry came from, kept for provenance. */
+  origin: string;
   rarity: string | null;
   min_float: number;
   max_float: number;
@@ -107,7 +111,7 @@ export function seed(opts: { force?: boolean } = {}): void {
         a: s.art.a,
         b: s.art.b,
         image_url: art?.image ?? null,
-        image_source: art ? "steam-cdn" : null,
+        image_source: art ? art.source : null,
         image_status: art ? "valid" : "missing",
         ts,
       });
@@ -119,6 +123,36 @@ export function seed(opts: { force?: boolean } = {}): void {
         slug: string;
       }[]).map((s) => [s.slug, s.id]),
     );
+
+    // Record where each bundled picture came from. The importer writes
+    // the same rows; doing it here too means a fresh clone can prove the
+    // provenance of its artwork without running the import first.
+    const insertImage = db.prepare(
+      `INSERT INTO skin_images (skin_id, url, source, is_primary, created_at)
+       VALUES (@skin_id, @url, @source, @primary, @ts)
+       ON CONFLICT(skin_id, url) DO NOTHING`,
+    );
+    for (const s of SKINS) {
+      const art = IMAGES[s.market_name];
+      const skinId = skinIds.get(s.slug);
+      if (!art || !skinId) continue;
+      insertImage.run({
+        skin_id: skinId,
+        url: art.image,
+        source: art.source,
+        primary: 1,
+        ts,
+      });
+      if (art.origin) {
+        insertImage.run({
+          skin_id: skinId,
+          url: art.origin,
+          source: "cdn",
+          primary: art.source === "cdn" ? 1 : 0,
+          ts,
+        });
+      }
+    }
 
     // ── cases ──
     const insertCase = db.prepare(

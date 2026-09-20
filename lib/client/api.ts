@@ -115,6 +115,7 @@ export interface CaseSummary {
   art: { emblem: string; color_a: string; color_b: string };
   item_count?: number;
   best_price_minor?: number | null;
+  top_skins?: { image_url: string; market_name: string }[];
 }
 
 export interface CaseItem {

@@ -13,9 +13,10 @@
     "test:probability": "tsx --conditions=react-server scripts/simulate.mts",
     "test:simulate": "node scripts/simulate-api.mjs",
     "import:skins": "node scripts/import-skins.mjs",
+    "import:skins:cdn": "node scripts/import-skins.mjs --no-download --force",
+    "skins:snapshot": "node scripts/build-skin-snapshot.mjs",
     "verify:images": "node scripts/verify-images.mjs",
-    "verify:browser": "node scripts/check-browser-images.mjs",
-    "import:skins:local": "node scripts/import-skins.mjs --download --force"
+    "verify:browser": "node scripts/check-browser-images.mjs"
   },
   "dependencies": {
     "@types/better-sqlite3": "^9.6.0",
@@ -36,6 +37,7 @@
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.13",
     "typescript": "^5.7.3"

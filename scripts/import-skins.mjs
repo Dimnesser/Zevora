@@ -1,23 +1,44 @@
 /**
  * Imports real CS2 artwork for every skin in the catalogue.
  *
- * Source
- * ------
- * ByMykel/CSGO-API — a public, MIT-licensed export of Valve's own item
- * data. Each entry carries the skin's exact market name and the URL of
- * Valve's own render on the Steam CDN, so the picture shown for
- * "AWP | Asiimov" is Valve's Asiimov render, not a generic AWP.
+ * Where the pictures come from
+ * ----------------------------
+ * Valve ships a render of every finish inside the game client, under
+ * `panorama/images/econ/default_generated/`. Those files are what the
+ * game itself draws in the inventory and the buy menu, so the picture
+ * for "AWP | Asiimov" is Valve's Asiimov render — not a generic AWP,
+ * not an icon, not a drawing.
  *
- * The dataset is read from raw.githubusercontent.com rather than the
- * project's GitHub Pages mirror, because raw is reachable from more
- * networks and serves the same file.
+ * Two public sources are combined:
+ *
+ *   menschma1er/cs2-images  the extracted `panorama/` tree (5 481 renders
+ *                           in default_generated), decompiled with
+ *                           ValveResourceFormat and served over
+ *                           raw.githubusercontent.com.
+ *   ByMykel/CSGO-API        the item dataset, which gives each skin its
+ *                           market name plus Valve's internal ids.
+ *
+ * The join between them is exact, not fuzzy. A render's filename is
+ * built from Valve's own identifiers:
+ *
+ *   {weapon.id}_{pattern.id}_{wear}.png
+ *   weapon_ak47 + cu_ak47_cobra + light → weapon_ak47_cu_ak47_cobra_light.png
+ *
+ * `pattern.id` is the paint-kit name, so a skin can only ever resolve to
+ * its own finish. If the file is not in the tree the row is marked
+ * `missing` rather than being pointed at something that merely looks
+ * close.
+ *
+ * `light` / `medium` / `heavy` are wear levels (Factory New through
+ * Battle-Scarred). The catalogue uses `light`, the crispest one.
  *
  * Usage
  * -----
- *   npm run import:skins                 map names → image URLs
- *   npm run import:skins -- --verify     also HTTP-check every URL
- *   npm run import:skins -- --download   cache the files into public/skins
+ *   npm run import:skins                 verify, download, convert to WebP
+ *   npm run import:skins -- --no-download  keep CDN URLs, do not write files
  *   npm run import:skins -- --force      re-import rows already marked valid
+ *   npm run import:skins -- --wear heavy use a different wear render
+ *   npm run import:skins -- --png        skip WebP conversion
  *   npm run import:skins -- --file x.json  use a local copy of the dataset
  *
  * Re-running is safe: rows already marked `valid` are skipped unless
@@ -37,39 +58,39 @@ const value = (flag, fallback) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
 };
 
+const DATASET =
+  "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json";
+const RENDERS =
+  "https://raw.githubusercontent.com/menschma1er/cs2-images/main/panorama/images/econ/default_generated";
+
 const OPTIONS = {
-  source: value(
-    "--source",
-    "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json",
-  ),
+  source: value("--source", DATASET),
+  renders: value("--renders", RENDERS),
   file: value("--file", null),
-  verify: has("--verify") || has("--download"),
-  download: has("--download"),
+  wear: value("--wear", "light"),
+  download: !has("--no-download"),
+  webp: !has("--png"),
   force: has("--force"),
   concurrency: Number(value("--concurrency", "8")) || 8,
-  timeout: Number(value("--timeout", "25000")) || 25000,
+  timeout: Number(value("--timeout", "30000")) || 30000,
 };
 
 const DB_FILE =
   process.env.ZEVORA_DB_FILE ?? path.join(process.cwd(), ".data", "zevora.db");
 const PUBLIC_DIR = path.join(process.cwd(), "public", "skins");
-const SOURCE_NAME = "bymykel/CSGO-API (Steam CDN)";
+const SOURCE_NAME = "menschma1er/cs2-images · default_generated";
 
 /* ───────────────────────── helpers ───────────────────────── */
 
 const c = {
   dim: (s) => `\x1b[2m${s}\x1b[0m`,
-  green: (s) => `\x1b[32m${s}\x1b[0m`,
   red: (s) => `\x1b[31m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
   yellow: (s) => `\x1b[33m${s}\x1b[0m`,
   bold: (s) => `\x1b[1m${s}\x1b[0m`,
 };
 
-/**
- * Normalises a market name for matching.
- * Valve's ★ prefix and inconsistent spacing around the pipe are the only
- * differences that ever show up between sources.
- */
+/** Market names differ only in decoration, never in substance. */
 const normalise = (name) =>
   String(name ?? "")
     .replace(/★/g, "")
@@ -79,83 +100,71 @@ const normalise = (name) =>
     .trim()
     .toLowerCase();
 
-/** Reads width and height out of a PNG's IHDR chunk. */
-function pngSize(buffer) {
-  if (buffer.length < 24) return null;
-  const isPng =
-    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-  if (!isPng) return null;
-  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+/** Width and height straight out of a PNG's IHDR chunk. */
+function pngSize(buf) {
+  if (buf.length < 24 || buf[0] !== 0x89 || buf[1] !== 0x50) return null;
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
-/** Runs `worker` over `items` with a bounded number in flight. */
-async function pool(items, limit, worker) {
-  const results = [];
-  let cursor = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      results[index] = await worker(items[index], index);
-    }
-  });
-  await Promise.all(runners);
-  return results;
-}
-
-/* ───────────────────────── dataset ───────────────────────── */
-
-async function loadDataset() {
-  if (OPTIONS.file) {
-    console.log(`Источник: локальный файл ${OPTIONS.file}`);
-    return JSON.parse(fs.readFileSync(OPTIONS.file, "utf8"));
+async function fetchBuffer(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), OPTIONS.timeout);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    const type = res.headers.get("content-type") ?? "";
+    if (!res.ok) return { ok: false, status: res.status, type };
+    const body = Buffer.from(await res.arrayBuffer());
+    return { ok: true, status: res.status, type, body };
+  } catch (err) {
+    return { ok: false, status: 0, type: "", error: String(err?.message ?? err) };
+  } finally {
+    clearTimeout(timer);
   }
-
-  console.log(`Источник: ${OPTIONS.source}`);
-  const res = await fetch(OPTIONS.source, {
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} при загрузке каталога`);
-  return res.json();
 }
-
-/* ───────────────────────── validation ───────────────────────── */
 
 /**
- * Fetches an image and reports what actually came back.
- * A URL that answers 200 with an HTML error page is not a valid image,
- * so the content type and the PNG header are both checked.
+ * Fetches a render and proves it really is an image before it is used:
+ * HTTP status, content type, a plausible size, and PNG dimensions.
  */
-async function inspectImage(url) {
+async function fetchRender(url) {
+  const res = await fetchBuffer(url);
+  if (!res.ok) return { ok: false, status: res.status, type: res.type, error: res.error };
+
+  const size = pngSize(res.body);
+  const problem =
+    !res.type.startsWith("image/") ? `content-type ${res.type || "—"}`
+    : res.body.length < 1024 ? `слишком мало байт (${res.body.length})`
+    : !size ? "не PNG"
+    : size.width < 64 || size.height < 64 ? `слишком мелко (${size.width}×${size.height})`
+    : null;
+
+  if (problem) return { ok: false, status: res.status, type: res.type, error: problem };
+  return { ok: true, status: res.status, type: res.type, body: res.body, ...size };
+}
+
+/** sharp ships with Next, but the importer must not hard-fail without it. */
+async function loadSharp() {
+  if (!OPTIONS.webp) return null;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(OPTIONS.timeout) });
-    const contentType = res.headers.get("content-type") ?? "";
-
-    if (!res.ok) {
-      return { ok: false, status: res.status, contentType, reason: `HTTP ${res.status}` };
-    }
-    if (!contentType.startsWith("image/")) {
-      return { ok: false, status: res.status, contentType, reason: `не изображение (${contentType})` };
-    }
-
-    const buffer = Buffer.from(await res.arrayBuffer());
-    const size = pngSize(buffer);
-
-    if (buffer.length < 1024) {
-      return { ok: false, status: res.status, contentType, bytes: buffer.length, reason: "слишком маленький файл" };
-    }
-
-    return {
-      ok: true,
-      status: res.status,
-      contentType,
-      bytes: buffer.length,
-      width: size?.width ?? null,
-      height: size?.height ?? null,
-      buffer,
-    };
-  } catch (err) {
-    return { ok: false, status: null, reason: err.name === "TimeoutError" ? "таймаут" : err.message };
+    return (await import("sharp")).default;
+  } catch {
+    console.log(c.yellow("sharp недоступен — сохраняю PNG без конвертации в WebP\n"));
+    return null;
   }
+}
+
+async function mapLimit(items, limit, worker) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await worker(items[i], i);
+      }
+    }),
+  );
+  return out;
 }
 
 /* ───────────────────────── main ───────────────────────── */
@@ -169,248 +178,186 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(c.bold("Импорт изображений скинов"));
+  console.log(c.dim(`  данные:   ${OPTIONS.file ?? OPTIONS.source}`));
+  console.log(c.dim(`  рендеры:  ${OPTIONS.renders}`));
+  console.log(c.dim(`  износ:    ${OPTIONS.wear}`));
+  console.log(
+    c.dim(
+      `  режим:    ${OPTIONS.download ? "скачивание в public/skins" : "только CDN-ссылки"}`,
+    ),
+  );
+  console.log();
+
+  /* ── dataset ── */
+  let dataset;
+  if (OPTIONS.file) {
+    dataset = JSON.parse(fs.readFileSync(OPTIONS.file, "utf8"));
+  } else {
+    const res = await fetchBuffer(OPTIONS.source);
+    if (!res.ok) {
+      console.error(c.red(`Не удалось получить датасет: ${res.status} ${res.error ?? ""}`));
+      process.exit(1);
+    }
+    dataset = JSON.parse(res.body.toString("utf8"));
+  }
+  const index = new Map();
+  for (const entry of dataset) index.set(normalise(entry.name), entry);
+  console.log(c.dim(`  записей в датасете: ${dataset.length}\n`));
+
+  const sharp = await loadSharp();
   const db = new Database(DB_FILE);
   db.pragma("foreign_keys = ON");
 
   const skins = db
     .prepare(
-      `SELECT s.id, s.slug, s.market_name, s.market_hash_name,
-              s.image_url, s.image_status, r.slug AS rarity_slug
-         FROM skins s JOIN rarities r ON r.id = s.rarity_id
-        ORDER BY s.id`,
+      `SELECT id, slug, market_name, market_hash_name, image_url, image_status
+         FROM skins ORDER BY market_name`,
     )
     .all();
 
-  if (skins.length === 0) {
-    console.error(c.red("В базе нет скинов — сначала запустите приложение."));
-    process.exit(1);
-  }
-
-  console.log(`Скинов в каталоге: ${c.bold(skins.length)}`);
-
-  const dataset = await loadDataset();
-  const entries = Array.isArray(dataset) ? dataset : Object.values(dataset);
-  console.log(`Записей в каталоге источника: ${c.bold(entries.length)}\n`);
-
-  // Build the lookup once. First entry wins, which keeps the base skin
-  // rather than a souvenir or StatTrak duplicate.
-  const byName = new Map();
-  for (const entry of entries) {
-    if (!entry?.name || !entry?.image) continue;
-    const key = normalise(entry.name);
-    if (!byName.has(key)) byName.set(key, entry);
-  }
-
-  const rarityIds = new Map(
-    db
-      .prepare(`SELECT id, slug FROM rarities`)
-      .all()
-      .map((r) => [r.slug, r.id]),
-  );
-
-  /** Valve's rarity names → our rarity slugs. */
-  const RARITY_SLUG = {
-    "Consumer Grade": "consumer",
-    "Industrial Grade": "industrial",
-    "Mil-Spec Grade": "milspec",
-    Restricted: "restricted",
-    Classified: "classified",
-    Covert: "covert",
-    Extraordinary: "extraordinary",
-    Contraband: "contraband",
-  };
-
-  // ── match ──
-  const matched = [];
-  const unmatched = [];
-
-  for (const skin of skins) {
-    const hash = skin.market_hash_name ?? skin.market_name;
-    const entry = byName.get(normalise(hash));
-    if (entry) matched.push({ skin, entry });
-    else unmatched.push(skin);
-  }
-
-  console.log(
-    `Сопоставлено по имени: ${c.green(matched.length)} / ${skins.length}` +
-      (unmatched.length ? `, не найдено: ${c.yellow(unmatched.length)}` : ""),
-  );
-
-  // Rows already validated are left alone unless --force.
-  const work = matched.filter(
-    ({ skin }) => OPTIONS.force || skin.image_status !== "valid",
-  );
-  const skipped = matched.length - work.length;
-  if (skipped > 0) console.log(c.dim(`Пропущено уже импортированных: ${skipped}`));
-
-  if (OPTIONS.download) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-
-  const now = Date.now();
   const updateSkin = db.prepare(
     `UPDATE skins
         SET market_hash_name = @hash,
-            image_url = @url,
-            image_source = @source,
-            image_status = @status,
-            image_checked_at = @checked,
-            rarity_id = COALESCE(@rarity_id, rarity_id),
-            updated_at = @checked
+            image_url        = @url,
+            image_source     = @source,
+            image_status     = @status,
+            image_checked_at = @ts,
+            updated_at       = @ts
       WHERE id = @id`,
   );
-  const recordImage = db.prepare(
+  const journal = db.prepare(
     `INSERT INTO skin_images
-       (skin_id, url, source, is_primary, http_status, content_type,
-        bytes, width, height, checked_at, created_at)
-     VALUES (@skin_id, @url, @source, 1, @http_status, @content_type,
-             @bytes, @width, @height, @checked_at, @created_at)
+       (skin_id, url, source, is_primary, http_status, content_type, bytes,
+        width, height, checked_at, created_at)
+     VALUES (@skin_id, @url, @source, @primary, @status, @type, @bytes,
+             @width, @height, @ts, @ts)
      ON CONFLICT(skin_id, url) DO UPDATE SET
-       http_status = excluded.http_status,
+       http_status  = excluded.http_status,
        content_type = excluded.content_type,
-       bytes = excluded.bytes,
-       width = excluded.width,
-       height = excluded.height,
-       checked_at = excluded.checked_at`,
+       bytes        = excluded.bytes,
+       width        = excluded.width,
+       height       = excluded.height,
+       checked_at   = excluded.checked_at`,
   );
 
-  const stats = { valid: 0, pending: 0, broken: 0, downloaded: 0 };
-  const failures = [];
+  if (OPTIONS.download) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 
-  if (OPTIONS.verify) {
-    console.log(
-      `\nПроверяю изображения (параллельно ${OPTIONS.concurrency})…` +
-        (OPTIONS.download ? " с сохранением в public/skins" : ""),
-    );
-  } else {
-    console.log(
-      c.dim("\nБез --verify URL только записываются; статус останется pending."),
-    );
-  }
+  const tally = { valid: 0, missing: 0, broken: 0, skipped: 0 };
 
-  const results = await pool(work, OPTIONS.concurrency, async ({ skin, entry }) => {
-    const rarityName = entry.rarity?.name;
-    const raritySlug = RARITY_SLUG[rarityName];
-    const rarityId = raritySlug ? (rarityIds.get(raritySlug) ?? null) : null;
+  const results = await mapLimit(skins, OPTIONS.concurrency, async (skin) => {
+    /* Already imported and still good — leave it alone. */
+    if (!OPTIONS.force && skin.image_status === "valid" && skin.image_url) {
+      tally.skipped += 1;
+      return { skin, state: "skipped" };
+    }
 
-    const row = {
+    const entry = index.get(normalise(skin.market_name));
+    const weapon = entry?.weapon?.id;
+    const pattern = entry?.pattern?.id;
+
+    /* No exact identifiers means no picture — never a lookalike. */
+    if (!weapon || !pattern) {
+      tally.missing += 1;
+      updateSkin.run({
+        id: skin.id,
+        hash: entry?.name ?? skin.market_hash_name ?? skin.market_name,
+        url: null,
+        source: null,
+        status: "missing",
+        ts: Math.floor(Date.now() / 1000),
+      });
+      return { skin, state: "missing", why: entry ? "нет weapon/pattern id" : "нет в датасете" };
+    }
+
+    const file = `${weapon}_${pattern}_${OPTIONS.wear}.png`;
+    const url = `${OPTIONS.renders}/${file}`;
+    const res = await fetchRender(url);
+    const ts = Math.floor(Date.now() / 1000);
+
+    if (!res.ok) {
+      tally.broken += 1;
+      updateSkin.run({
+        id: skin.id,
+        hash: entry.name,
+        url: null,
+        source: null,
+        status: res.status === 404 ? "missing" : "broken",
+        ts,
+      });
+      journal.run({
+        skin_id: skin.id, url, source: "cdn", primary: 0,
+        status: res.status, type: res.type || null, bytes: null,
+        width: null, height: null, ts,
+      });
+      return { skin, state: "broken", why: res.error ?? `HTTP ${res.status}`, url };
+    }
+
+    let publicUrl = url;
+    let source = "cdn";
+    let bytes = res.body.length;
+
+    if (OPTIONS.download) {
+      const ext = sharp ? "webp" : "png";
+      const out = path.join(PUBLIC_DIR, `${skin.slug}.${ext}`);
+      const body = sharp
+        ? await sharp(res.body).webp({ quality: 90 }).toBuffer()
+        : res.body;
+      fs.writeFileSync(out, body);
+      bytes = body.length;
+      publicUrl = `/skins/${skin.slug}.${ext}`;
+      source = "local";
+    }
+
+    updateSkin.run({
       id: skin.id,
       hash: entry.name,
-      url: entry.image,
-      source: "steam-cdn",
-      status: "pending",
-      checked: now,
-      rarity_id: rarityId,
-    };
-
-    if (!OPTIONS.verify) return { skin, entry, row, inspection: null };
-
-    const inspection = await inspectImage(entry.image);
-
-    if (inspection.ok) {
-      row.status = "valid";
-      if (OPTIONS.download && inspection.buffer) {
-        const file = `${skin.slug}.png`;
-        fs.writeFileSync(path.join(PUBLIC_DIR, file), inspection.buffer);
-        // Serving from our own origin removes the CDN as a dependency.
-        row.url = `/skins/${file}`;
-        row.source = "local";
-        stats.downloaded++;
-      }
-    } else {
-      row.status = "broken";
-      failures.push({ name: skin.market_name, reason: inspection.reason });
-    }
-
-    return { skin, entry, row, inspection };
-  });
-
-  // ── persist ──
-  const write = db.transaction((items) => {
-    for (const { skin, entry, row, inspection } of items) {
-      updateSkin.run(row);
-      stats[row.status] = (stats[row.status] ?? 0) + 1;
-
-      recordImage.run({
-        skin_id: skin.id,
-        url: row.url,
-        source: row.source,
-        http_status: inspection?.status ?? null,
-        content_type: inspection?.contentType ?? null,
-        bytes: inspection?.bytes ?? null,
-        width: inspection?.width ?? null,
-        height: inspection?.height ?? null,
-        checked_at: OPTIONS.verify ? now : null,
-        created_at: now,
+      url: publicUrl,
+      source,
+      status: "valid",
+      ts,
+    });
+    /* The journal always records where the bytes actually came from. */
+    journal.run({
+      skin_id: skin.id, url, source: "cdn", primary: OPTIONS.download ? 0 : 1,
+      status: res.status, type: res.type, bytes: res.body.length,
+      width: res.width, height: res.height, ts,
+    });
+    if (OPTIONS.download) {
+      journal.run({
+        skin_id: skin.id, url: publicUrl, source: "local", primary: 1,
+        status: 200, type: sharp ? "image/webp" : "image/png", bytes,
+        width: res.width, height: res.height, ts,
       });
-
-      // The Steam URL stays on record even when a local copy is served.
-      if (row.source === "local") {
-        recordImage.run({
-          skin_id: skin.id,
-          url: entry.image,
-          source: "steam-cdn",
-          http_status: inspection?.status ?? null,
-          content_type: inspection?.contentType ?? null,
-          bytes: inspection?.bytes ?? null,
-          width: inspection?.width ?? null,
-          height: inspection?.height ?? null,
-          checked_at: now,
-          created_at: now,
-        });
-      }
     }
+
+    tally.valid += 1;
+    return { skin, state: "valid", url, publicUrl, bytes, w: res.width, h: res.height };
   });
-  write(results);
 
-  // Anything the source does not know about is flagged, not left ambiguous.
-  const markMissing = db.prepare(
-    `UPDATE skins SET image_status = 'missing', image_checked_at = ? WHERE id = ?`,
-  );
-  for (const skin of unmatched) markMissing.run(now, skin.id);
-
-  // ── report ──
-  console.log(`\n${c.bold("Результат")}`);
-  console.log(`  валидных:     ${c.green(stats.valid ?? 0)}`);
-  if ((stats.pending ?? 0) > 0) console.log(`  без проверки: ${stats.pending}`);
-  if ((stats.broken ?? 0) > 0) console.log(`  битых:        ${c.red(stats.broken)}`);
-  if (unmatched.length > 0) console.log(`  не найдено:   ${c.yellow(unmatched.length)}`);
-  if (OPTIONS.download) console.log(`  сохранено:    ${stats.downloaded} → public/skins/`);
-
-  if (failures.length > 0) {
-    console.log(`\n${c.red("Не удалось загрузить:")}`);
-    for (const f of failures.slice(0, 20)) {
-      console.log(`  · ${f.name.padEnd(34)} ${f.reason}`);
-    }
-    if (failures.length > 20) console.log(`  … и ещё ${failures.length - 20}`);
-    console.log(
-      c.dim(
-        "\nЕсли причина — блокировка сети, изображения всё равно записаны\n" +
-          "в базу и загрузятся в браузере пользователя. Повторный запуск\n" +
-          "перепроверит только эти строки.",
-      ),
-    );
+  /* ── report ── */
+  for (const r of results) {
+    if (r.state === "skipped") continue;
+    const mark =
+      r.state === "valid" ? c.green("✓")
+      : r.state === "missing" ? c.yellow("○")
+      : c.red("✗");
+    const detail =
+      r.state === "valid"
+        ? c.dim(`${r.w}×${r.h}  ${(r.bytes / 1024).toFixed(0)} КБ  ${r.publicUrl}`)
+        : c.dim(r.why);
+    console.log(`  ${mark} ${r.skin.market_name.padEnd(34)} ${detail}`);
   }
 
-  if (unmatched.length > 0) {
-    console.log(`\n${c.yellow("Нет в источнике:")}`);
-    for (const s of unmatched.slice(0, 20)) console.log(`  · ${s.market_name}`);
-    console.log(
-      c.dim("Проверьте точность market_name в lib/server/seed-data.ts."),
-    );
-  }
+  console.log();
+  console.log(c.bold("Итого"));
+  console.log(`  ${c.green("valid")}    ${tally.valid}`);
+  if (tally.skipped) console.log(`  ${c.dim("пропущено")} ${tally.skipped} (уже импортированы, --force чтобы обновить)`);
+  if (tally.missing) console.log(`  ${c.yellow("missing")}  ${tally.missing}`);
+  if (tally.broken) console.log(`  ${c.red("broken")}   ${tally.broken}`);
 
-  const summary = db
-    .prepare(
-      `SELECT image_status AS status, COUNT(*) AS n FROM skins GROUP BY image_status`,
-    )
-    .all();
-  console.log(`\n${c.bold("Состояние каталога")}`);
-  for (const r of summary) console.log(`  ${String(r.status).padEnd(9)} ${r.n}`);
-
-  console.log(`\nИсточник записан как: ${c.bold(SOURCE_NAME)}`);
-  console.log("Готово.");
+  db.close();
+  process.exit(tally.broken > 0 ? 1 : 0);
 }
 
-main().catch((err) => {
-  console.error(c.red(`\nОшибка импорта: ${err.message}`));
-  process.exit(1);
-});
+await main();

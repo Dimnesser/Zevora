@@ -67,7 +67,7 @@ export function listCases(opts: { includeInactive?: boolean; partner?: boolean }
   if (!opts.partner && !opts.includeInactive) conditions.push("c.partner_only = 0");
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  return db
+  const rows = db
     .prepare(
       `SELECT c.*,
               (SELECT COUNT(*) FROM case_items ci WHERE ci.case_id = c.id) AS item_count,
@@ -79,6 +79,22 @@ export function listCases(opts: { includeInactive?: boolean; partner?: boolean }
         ORDER BY c.sort_order ASC, c.id ASC`,
     )
     .all() as (CaseRow & { item_count: number; best_price_minor: number | null })[];
+
+  // The catalogue card previews what is actually inside: the three
+  // priciest skins, with their real artwork.
+  const preview = db.prepare(
+    `SELECT s.image_url AS image_url, s.market_name AS market_name
+       FROM case_items ci
+       JOIN skins s ON s.id = ci.skin_id
+      WHERE ci.case_id = ? AND s.image_url IS NOT NULL
+      ORDER BY s.base_price_minor DESC
+      LIMIT 3`,
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    top_skins: preview.all(row.id) as { image_url: string; market_name: string }[],
+  }));
 }
 
 export function getCaseBySlug(slug: string): CaseRow | null {

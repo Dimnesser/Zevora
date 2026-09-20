@@ -92,10 +92,15 @@ export interface PublicCase {
   art: { emblem: string; color_a: string; color_b: string };
   item_count?: number;
   best_price_minor?: number | null;
+  top_skins?: { image_url: string; market_name: string }[];
 }
 
 export function publicCase(
-  row: CaseRow & { item_count?: number; best_price_minor?: number | null },
+  row: CaseRow & {
+    item_count?: number;
+    best_price_minor?: number | null;
+    top_skins?: { image_url: string; market_name: string }[];
+  },
 ): PublicCase {
   return {
     id: row.id,
@@ -115,6 +120,7 @@ export function publicCase(
     },
     item_count: row.item_count,
     best_price_minor: row.best_price_minor,
+    top_skins: row.top_skins,
   };
 }
 

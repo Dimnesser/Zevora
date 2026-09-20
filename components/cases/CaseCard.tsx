@@ -31,6 +31,7 @@ function CaseCardBase({ kase, locked = false, className }: CaseCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const accent = kase.art.color_a;
+  const preview = kase.top_skins ?? [];
 
   const onMove = (e: React.MouseEvent) => {
     const el = ref.current;
@@ -97,6 +98,29 @@ function CaseCardBase({ kase, locked = false, className }: CaseCardProps) {
               label={kase.name}
             />
           </div>
+
+          {/* The three priciest skins actually inside, fanned behind the
+              case so the catalogue shows real items, not just a box. */}
+          {preview.length > 0 && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-1 z-10 flex items-end justify-center">
+              {preview.map((skin, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={skin.image_url}
+                  src={skin.image_url}
+                  alt={skin.market_name}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-[62px] w-[82px] object-contain transition-transform duration-500 ease-premium group-hover:-translate-y-1"
+                  style={{
+                    transform: `rotate(${(i - 1) * 9}deg) translateY(${Math.abs(i - 1) * 5}px)`,
+                    filter: `drop-shadow(0 6px 14px ${accent}55)`,
+                    zIndex: 3 - Math.abs(i - 1),
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-1 flex-col px-4 pb-4 pt-3">

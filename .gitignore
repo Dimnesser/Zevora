@@ -15,6 +15,3 @@ tsconfig.tsbuildinfo
 *.db
 *.db-wal
 *.db-shm
-
-# Locally cached skin artwork (npm run import:skins -- --download)
-public/skins/
