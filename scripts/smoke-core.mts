@@ -37,14 +37,14 @@ const token = createSession(1);
 const user = userForToken(token)!;
 console.log("\nuser:", user.username, "balance:", user.balance_minor / 100);
 
-const res = openCase(user, "night-raid", "smoke-key-1");
+const res = openCase(user, "chas-volka", "smoke-key-1");
 console.log("won:", res.item.market_name, res.item.wear, "st:" + res.item.stattrak,
             (res.item.price_minor / 100).toFixed(2) + "₽",
             "| roll", res.audit.roll, "/", res.audit.total_weight);
 console.log("balance after:", res.balance_minor / 100);
 
 // Idempotency: same key must replay, not recharge
-const replay = openCase(user, "night-raid", "smoke-key-1");
+const replay = openCase(user, "chas-volka", "smoke-key-1");
 console.log("replay same opening_id:", replay.opening_id === res.opening_id);
 console.log("replay balance unchanged:", replay.balance_minor === res.balance_minor);
 const bal = (db.prepare("SELECT balance_minor FROM users WHERE id=1").get() as any).balance_minor;

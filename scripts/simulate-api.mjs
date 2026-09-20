@@ -8,7 +8,7 @@
 
 const BASE = process.env.BASE ?? "http://localhost:3100";
 const OPENS = Number(process.env.OPENS ?? 600);
-const SLUG = process.env.SLUG ?? "night-raid";
+const SLUG = process.env.SLUG ?? "chas-volka";
 
 function makeClient() {
   let cookie = "";

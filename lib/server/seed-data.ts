@@ -9,6 +9,8 @@
  * exists, so the site is never blank offline.
  */
 
+import CASE_DATA from "@/lib/server/cases.json";
+
 export interface SeedRarity {
   slug: string;
   name: string;
@@ -129,210 +131,26 @@ export interface SeedCase {
   /** Price in ₽ (major units). */
   price: number;
   tags: string[];
-  partner_only?: boolean;
-  art: { emblem: string; a: string; b: string };
+  partner_only: boolean;
+  /** Rendered artwork under public/cases, built by `npm run build:cases`. */
+  image: string;
+  /** Shell and decal colours, mirroring the Figma file. */
+  shell: string;
+  ink: string;
+  mark: string;
+  sort_order: number;
   /** skin slug → integer weight. Weights are per-case and need not sum to any total. */
   items: Record<string, number>;
 }
 
-export const CASES: SeedCase[] = [
-  {
-    slug: "starter-drop",
-    name: "Стартовый набор",
-    description:
-      "Самый дешёвый вход в Zevora. Ничего дорогого, но шанс на Restricted есть в каждом открытии.",
-    price: 49,
-    tags: ["cheap", "new"],
-    art: { emblem: "bolt", a: "#22D3EE", b: "#0D1020" },
-    items: {
-      "p250-sand-dune": 20000,
-      "dual-berettas-contractor": 6000,
-      "sawed-off-forest-ddpat": 6000,
-      "p2000-grassland": 18000,
-      "mp9-storm": 18000,
-      "nova-polar-mesh": 12000,
-      "pp-bizon-urban-dashed": 8000,
-      "ump-45-momentum": 9000,
-      "glock-18-moonrise": 6000,
-      "ssg-08-necropos": 3000,
-      "ak-47-slate": 1500,
-      "usp-s-cortex": 400,
-      "desert-eagle-conspiracy": 100,
-    },
-  },
-  {
-    slug: "night-raid",
-    name: "Ночной рейд",
-    description:
-      "Тактический набор: тёмные финиши, городской камуфляж и редкий шанс на Covert.",
-    price: 299,
-    tags: ["cheap", "popular"],
-    art: { emblem: "eye", a: "#3E82F7", b: "#0B1220" },
-    items: {
-      "p2000-handgun": 13600,
-      "tec-9-isaac": 12000,
-      "nova-predator": 11000,
-      "mag-7-firestarter": 6000,
-      "scar-20-cardiac": 4000,
-      "mp9-rose-iron": 10000,
-      "famas-roll-cage": 9000,
-      "p250-nevermore": 9000,
-      "mp7-bloodsport": 11000,
-      "ak-47-slate": 10000,
-      "awp-atheris": 7000,
-      "glock-18-water-elemental": 4500,
-      "m4a1s-cyrex": 1800,
-      "ak-47-redline": 900,
-      "awp-hyper-beast": 200,
-    },
-  },
-  {
-    slug: "neon-division",
-    name: "Neon Division",
-    description:
-      "Кислотные цвета и неон: Neon Rider, Vogue и Starlight Protector в одном пуле.",
-    price: 899,
-    tags: ["popular", "new"],
-    art: { emblem: "bolt", a: "#FF3B6B", b: "#22D3EE" },
-    items: {
-      "mp9-rose-iron": 12000,
-      "galil-ar-sugar-rush": 10500,
-      "p250-nevermore": 9500,
-      "glock-18-moonrise": 9000,
-      "nova-hyper-beast": 9000,
-      "glock-18-vogue": 9500,
-      "mac-10-neon-rider": 9000,
-      "five-seven-hyper-beast": 8000,
-      "m4a1s-cyrex": 8000,
-      "ak-47-redline": 7000,
-      "mp9-starlight-protector": 5000,
-      "ak-47-neon-rider": 2000,
-      "awp-neo-noir": 900,
-      "m4a4-the-emperor": 550,
-      "karambit-doppler": 50,
-    },
-  },
-  {
-    slug: "asiimov-protocol",
-    name: "Asiimov Protocol",
-    description:
-      "Премиальная серия: Asiimov, Printstream и Kill Confirmed. Дешёвого мусора здесь нет.",
-    price: 2490,
-    tags: ["premium", "rare"],
-    art: { emblem: "hex", a: "#F5B841", b: "#16161E" },
-    items: {
-      "ak-47-slate": 14000,
-      "awp-atheris": 12000,
-      "usp-s-cortex": 11000,
-      "glock-18-vogue": 10000,
-      "m4a1s-cyrex": 9000,
-      "awp-man-o-war": 8000,
-      "m4a4-desolate-space": 7000,
-      "ak-47-point-disarray": 6000,
-      "ak-47-redline": 5500,
-      "m4a1s-hyper-beast": 4500,
-      "awp-hyper-beast": 3500,
-      "ak-47-bloodsport": 2400,
-      "ak-47-asiimov": 2400,
-      "awp-wildfire": 1900,
-      "usp-s-kill-confirmed": 1500,
-      "awp-asiimov": 1000,
-      "m4a1s-printstream": 520,
-      "ak-47-vulcan": 420,
-      "bayonet-tiger-tooth": 130,
-      "karambit-doppler": 55,
-      "m9-bayonet-marble-fade": 35,
-      "butterfly-knife-fade": 12,
-    },
-  },
-  {
-    slug: "blade-forge",
-    name: "Кузня клинков",
-    description:
-      "Шанс на нож или перчатки в каждом открытии. Самый высокий потолок в Zevora.",
-    price: 7990,
-    tags: ["premium", "rare", "popular"],
-    art: { emblem: "orbit", a: "#A855F7", b: "#5B4BFF" },
-    items: {
-      "ak-47-redline": 12000,
-      "m4a4-desolate-space": 10000,
-      "awp-man-o-war": 9500,
-      "ak-47-point-disarray": 9000,
-      "awp-hyper-beast": 9000,
-      "m4a1s-hyper-beast": 8500,
-      "ak-47-neon-rider": 8000,
-      "awp-neo-noir": 7500,
-      "desert-eagle-printstream": 7000,
-      "ak-47-bloodsport": 6000,
-      "m4a4-the-emperor": 5000,
-      "ak-47-asiimov": 4000,
-      "usp-s-kill-confirmed": 3000,
-      "awp-asiimov": 2400,
-      "ak-47-vulcan": 1800,
-      "m4a1s-printstream": 1200,
-      "bayonet-tiger-tooth": 700,
-      "talon-knife-slaughter": 420,
-      "m9-bayonet-marble-fade": 300,
-      "karambit-doppler": 220,
-      "specialist-gloves-fade": 130,
-      "butterfly-knife-fade": 70,
-      "sport-gloves-pandoras-box": 30,
-    },
-  },
-  {
-    slug: "legacy-vault",
-    name: "Legacy Vault",
-    description:
-      "Легендарные финиши CS2 — Dragon Lore, Howl и Blaze в одном пуле. Самый высокий потолок на площадке.",
-    price: 19900,
-    tags: ["premium", "rare"],
-    art: { emblem: "crown", a: "#E4AE39", b: "#2A1A05" },
-    items: {
-      "ak-47-redline": 14000,
-      "m4a4-neo-noir": 12000,
-      "awp-hyper-beast": 11000,
-      "m4a1s-player-two": 10000,
-      "ak-47-the-empress": 9000,
-      "usp-s-kill-confirmed": 8500,
-      "ak-47-asiimov": 8000,
-      "desert-eagle-blaze": 7370,
-      "glock-18-fade": 7000,
-      "awp-lightning-strike": 6500,
-      "awp-asiimov": 5000,
-      "m4a1s-printstream": 3500,
-      "bayonet-tiger-tooth": 2345,
-      "ak-47-vulcan": 1400,
-      "m9-bayonet-marble-fade": 1340,
-      "karambit-doppler": 837,
-      "m4a4-howl": 134,
-      "awp-dragon-lore": 34,
-    },
-  },
-  {
-    slug: "zevora-vault",
-    name: "Zevora Vault",
-    description:
-      "Закрытый кейс партнёрской программы. Открывается бесплатно и недоступен обычным аккаунтам.",
-    price: 0,
-    tags: ["partner", "premium"],
-    partner_only: true,
-    art: { emblem: "crown", a: "#F5B841", b: "#5B4BFF" },
-    items: {
-      "ak-47-redline": 20000,
-      "awp-hyper-beast": 16000,
-      "m4a1s-hyper-beast": 14000,
-      "ak-47-neon-rider": 12000,
-      "awp-neo-noir": 10000,
-      "desert-eagle-printstream": 8000,
-      "ak-47-asiimov": 6000,
-      "usp-s-kill-confirmed": 5000,
-      "awp-asiimov": 3500,
-      "m4a1s-printstream": 2000,
-      "ak-47-vulcan": 1500,
-      "karambit-doppler": 600,
-      "m9-bayonet-marble-fade": 300,
-      "butterfly-knife-fade": 80,
-      "sport-gloves-pandoras-box": 20,
-    },
-  },
-];
+/**
+ * The 25 cases.
+ *
+ * Names, prices, colours and decals come from `scripts/case-catalogue.mjs`;
+ * the drop tables are solved by `npm run build:cases:data`, which balances
+ * every case onto its target margin and refuses to emit one whose item pool
+ * cannot back its price. Editing the JSON by hand would be overwritten —
+ * change the catalogue and rebuild.
+ */
+export const CASES: SeedCase[] = CASE_DATA as unknown as SeedCase[];
+

@@ -11,7 +11,7 @@ import { formatMinor } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
 /** The case whose contents headline the hero scene. */
-const HERO_CASE = "blade-forge";
+const HERO_CASE = "legenda-2013";
 
 const TRUST = [
   { icon: ShieldCheck, label: "Прозрачные шансы" },

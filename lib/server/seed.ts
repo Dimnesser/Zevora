@@ -157,14 +157,22 @@ export function seed(opts: { force?: boolean } = {}): void {
     // ── cases ──
     const insertCase = db.prepare(
       `INSERT INTO cases
-         (slug, name, description, price_minor, is_active, is_demo,
+         (slug, name, description, image_url, price_minor, is_active, is_demo,
           partner_only, tags, art_emblem, art_color_a, art_color_b,
           sort_order, created_at, updated_at)
-       VALUES (@slug, @name, @description, @price_minor, 1, 1,
+       VALUES (@slug, @name, @description, @image, @price_minor, 1, 1,
                @partner_only, @tags, @emblem, @a, @b, @sort, @ts, @ts)
        ON CONFLICT(slug) DO UPDATE SET
          name = excluded.name,
          description = excluded.description,
+         image_url = excluded.image_url,
+         price_minor = excluded.price_minor,
+         partner_only = excluded.partner_only,
+         tags = excluded.tags,
+         art_emblem = excluded.art_emblem,
+         art_color_a = excluded.art_color_a,
+         art_color_b = excluded.art_color_b,
+         sort_order = excluded.sort_order,
          updated_at = excluded.updated_at`,
     );
 
@@ -181,12 +189,15 @@ export function seed(opts: { force?: boolean } = {}): void {
         slug: c.slug,
         name: c.name,
         description: c.description,
+        image: c.image,
         price_minor: toMinor(c.price),
         partner_only: c.partner_only ? 1 : 0,
         tags: JSON.stringify(c.tags),
-        emblem: c.art.emblem,
-        a: c.art.a,
-        b: c.art.b,
+        // The decal doubles as the emblem the procedural fallback draws,
+        // so a case still renders if its artwork file is missing.
+        emblem: c.mark,
+        a: c.shell,
+        b: c.ink,
         sort: index,
         ts,
       });

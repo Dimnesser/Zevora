@@ -1,0 +1,73 @@
+name: Showcase → GitHub Pages
+
+# Publishes the static case showcase in docs/.
+#
+# The app itself is not deployed here and cannot be: the case system is
+# server-authoritative (SQLite, sessions, transactional balance, a CSPRNG
+# draw behind an API) and Pages serves static files only. What ships is the
+# part that is static — the 25 case designs, their real drop tables and the
+# opening animation. The page says so on its face.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/zevora-gaming-platform-bbpz45
+    paths:
+      - "docs/**"
+      - "public/cases/**"
+      - "public/skins/**"
+      - "lib/server/cases.json"
+      - "scripts/build-showcase.mjs"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; let a running one finish rather than cancelling
+# it half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Rebuild from source so the published page can never drift from the
+      # catalogue that is committed.
+      - name: Rebuild case art and showcase
+        run: |
+          npm run build:cases
+          npm run build:cases:data
+          npm run build:showcase
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

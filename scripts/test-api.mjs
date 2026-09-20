@@ -98,7 +98,7 @@ async function main() {
   check("GET /api/cases доступен без входа", r.status === 200 && cases.length > 0);
   check("Партнёрские кейсы скрыты от обычного гостя", cases.every((c) => !c.partner_only));
 
-  const cheap = cases.find((c) => c.slug === "starter-drop");
+  const cheap = cases.find((c) => c.slug === "pervyy-zakhod");
   r = await anon(`/api/cases/${cheap.slug}`);
   const items = r.json?.items ?? [];
   const chanceSum = items.reduce((s, i) => s + i.chance, 0);
@@ -106,7 +106,7 @@ async function main() {
   check("Сумма шансов равна 1", Math.abs(chanceSum - 1) < 1e-9, `Σ=${chanceSum}`);
   check("У каждого предмета есть редкость и цена", items.every((i) => i.rarity?.color && i.price_minor > 0));
 
-  r = await anon("/api/cases/zevora-vault");
+  r = await anon("/api/cases/zal-osnovateley");
   check("Партнёрский кейс закрыт для гостя → 403", r.status === 403, `got ${r.status}`);
 
   // ───────────── opening ─────────────
@@ -389,9 +389,9 @@ async function main() {
 
   r = await alice("/api/cases");
   check("Партнёру виден закрытый кейс",
-        r.json.cases.some((c) => c.slug === "zevora-vault"));
+        r.json.cases.some((c) => c.slug === "zal-osnovateley"));
 
-  r = await alice("/api/cases/zevora-vault/open", {
+  r = await alice("/api/cases/zal-osnovateley/open", {
     method: "POST",
     headers: { "idempotency-key": "vault_" + rnd() },
   });
@@ -401,7 +401,7 @@ async function main() {
   check("Владелец снимает статус", r.status === 200);
   check("Статус снят в профиле", (await alice("/api/auth/me")).json.user.partner === null);
 
-  r = await alice("/api/cases/zevora-vault/open", {
+  r = await alice("/api/cases/zal-osnovateley/open", {
     method: "POST",
     headers: { "idempotency-key": "vault2_" + rnd() },
   });

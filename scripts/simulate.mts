@@ -74,11 +74,11 @@ for (const c of db
 }
 
 // Rarest item in the most expensive case: does it actually show up?
-const forge = db.prepare(`SELECT id FROM cases WHERE slug='blade-forge'`).get() as { id: number };
+const forge = db.prepare(`SELECT id FROM cases WHERE slug='tolko-stal'`).get() as { id: number };
 const forgeItems = getCaseItems(forge.id);
 const rarest = forgeItems.reduce((a, b) => (a.chance < b.chance ? a : b));
 console.log(
-  `\nРедчайший предмет blade-forge: ${rarest.market_name} p=${(rarest.chance * 100).toFixed(4)}% ` +
+  `\nРедчайший предмет tolko-stal: ${rarest.market_name} p=${(rarest.chance * 100).toFixed(4)}% ` +
     `→ ожидается ~${Math.round(rarest.chance * N)} раз на ${N.toLocaleString("ru-RU")} открытий`,
 );
 
