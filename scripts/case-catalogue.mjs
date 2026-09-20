@@ -21,61 +21,65 @@
 
 export const CASES = [
   // ── вход: несколько десятков рублей ──
-  { slug: "pervyy-zakhod", name: "Первый заход", price: 19,
+  { slug: "pervyy-zakhod", name: "Первый заход", price: 29,
     description: "Самый дешёвый вход в Zevora. Ничего дорогого, но попробовать механику хватит.",
     tags: ["cheap", "new"], shell: "#5A6172", ink: "#E4EAF4", mark: "tri",
-    pool: { floor: 11,     ceil: 1500,    count: 12, margin: 0.36 } },
+    // The floor item costs 11 ₽, so a 19 ₽ case left the curve nowhere to
+    // go: its target value sat almost on the cheapest drop and the table
+    // collapsed onto it. A slightly higher price and a tighter ceiling
+    // give the ladder room.
+    pool: { floor: 11, ceil: 600, count: 10, margin: 0.30 } },
 
   { slug: "nulevoy-otsek", name: "Нулевой отсек", price: 39,
     description: "Нулевой отсек хранилища: дешёвые финиши и редкий шанс уйти в плюс.",
     tags: ["cheap", "popular"], shell: "#1C8FA8", ink: "#A8F6FF", mark: "bolt",
-    pool: { floor: 12,     ceil: 3200,    count: 13, margin: 0.38 } },
+    pool: { floor: 12,     ceil: 900,    count: 13, margin: 0.38 } },
 
   { slug: "zhestyanka", name: "Жестянка", price: 69,
     description: "Пёстрая жестянка со складским хламом. Иногда в хламе попадается Classified.",
     tags: ["cheap"], shell: "#6C7A3A", ink: "#E1F0A4", mark: "hex",
-    pool: { floor: 14,     ceil: 6000,    count: 13, margin: 0.37 } },
+    pool: { floor: 14,     ceil: 1600,    count: 13, margin: 0.37 } },
 
   { slug: "seryy-sektor", name: "Серый сектор", price: 99,
     description: "Тёмные городские финиши без лишнего блеска. Ровный кейс на каждый день.",
     tags: ["cheap", "popular"], shell: "#343A46", ink: "#B6C0D0", mark: "bars",
-    pool: { floor: 20,     ceil: 9000,    count: 14, margin: 0.38 } },
+    pool: { floor: 20,     ceil: 2600,    count: 14, margin: 0.38 } },
 
   { slug: "pylnaya-smena", name: "Пыльная смена", price: 149,
     description: "Песок, камуфляж и потёртая сталь. Кейс для тех, кто играет, а не коллекционирует.",
     tags: ["cheap"], shell: "#A8854A", ink: "#FFE9BE", mark: "chev",
-    pool: { floor: 30,     ceil: 14000,   count: 14, margin: 0.39 } },
+    pool: { floor: 30,     ceil: 4200,   count: 14, margin: 0.39 } },
 
   // ── середина ──
   { slug: "chas-volka", name: "Час волка", price: 249,
     description: "Ночная операция: тёмные финиши, городской камуфляж и редкий шанс на Covert.",
     tags: ["popular"], shell: "#2B5FBF", ink: "#C3D9FF", mark: "fang",
-    pool: { floor: 40,     ceil: 24000,   count: 15, margin: 0.40 } },
+    pool: { floor: 40,     ceil: 7000,   count: 15, margin: 0.40 } },
 
   { slug: "mokryy-asfalt", name: "Мокрый асфальт", price: 399,
     description: "Холодная палитра: сталь, графит и синие подсветки.",
     tags: ["new"], shell: "#26303F", ink: "#9FC6E8", mark: "drop",
-    pool: { floor: 60,     ceil: 40000,   count: 15, margin: 0.40 } },
+    pool: { floor: 60,     ceil: 11000,   count: 15, margin: 0.40 } },
 
   { slug: "kislotnyy-dozhd", name: "Кислотный дождь", price: 599,
     description: "Кислотные цвета и неон. Самый громкий кейс средней полки.",
     tags: ["popular", "new"], shell: "#7BC23A", ink: "#F0FFD4", mark: "rain",
-    pool: { floor: 90,     ceil: 60000,   count: 15, margin: 0.39 } },
+    pool: { floor: 90,     ceil: 17000,   count: 15, margin: 0.39 } },
 
   { slug: "neonovyy-kvartal", name: "Неоновый квартал", price: 899,
     description: "Neon Rider, Vogue и всё, что светится. Плотная середина без провалов.",
     tags: ["popular"], shell: "#C42A78", ink: "#FFC9E9", mark: "star5",
-    pool: { floor: 140,    ceil: 92000,   count: 16, margin: 0.38 } },
+    pool: { floor: 140,    ceil: 26000,   count: 16, margin: 0.38 } },
 
   { slug: "kholodnaya-svarka", name: "Холодная сварка", price: 1290,
     description: "Синие и стальные финиши высокого класса. Шанс на нож здесь уже не теоретический.",
     tags: ["premium"], shell: "#3F7FA8", ink: "#D6F2FF", mark: "star8",
-    pool: { floor: 200,    ceil: 130000,  count: 16, margin: 0.40 } },
+    pool: { floor: 200,    ceil: 38000,  count: 16, margin: 0.40 } },
 
   { slug: "krasnaya-smena", name: "Красная смена", price: 1790,
     description: "Красные и оранжевые финиши: Redline, Bloodsport, Wildfire и их соседи.",
     tags: ["premium"], shell: "#B8293C", ink: "#FFD4DA", mark: "cross",
-    pool: { floor: 280,    ceil: 180000,  count: 16, margin: 0.40 } },
+    pool: { floor: 280,    ceil: 52000,  count: 16, margin: 0.40 } },
 
   // ── верх ──
   { slug: "belyy-shum", name: "Белый шум", price: 2490,
@@ -143,7 +147,7 @@ export const CASES = [
   { slug: "tolko-stal", name: "Только сталь", price: 94900,
     description: "В кейсе только клинки и перчатки — ни одного ствола. Самый дорогой вход в каталоге.",
     tags: ["premium", "rare"], shell: "#6E7683", ink: "#EEF4FC", mark: "blade",
-    pool: { weapons: ["★"], floor: 500, ceil: 215000, count: 9, margin: 0.41 } },
+    pool: { weapons: ["★"], floor: 500, ceil: 215000, count: 9, margin: 0.22 } },
 
   // ── закрытый ──
   { slug: "zal-osnovateley", name: "Зал основателей", price: 0, partner_only: true,

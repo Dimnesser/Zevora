@@ -55,7 +55,11 @@ function main() {
         return {
           name: s.name, price: s.price, rarity: s.rarity, weight: w,
           chance: w / total,
-          image: (IMAGES[s.name]?.image) ?? null,
+          // The catalogue stores site-absolute paths ("/skins/..."), but
+          // Pages serves this under /<repo>/, where a leading slash would
+          // resolve to the domain root and 404. Everything here is
+          // relative to index.html.
+          image: (IMAGES[s.name]?.image ?? "").replace(/^\//, "") || null,
         };
       })
       .filter(Boolean)
@@ -77,10 +81,19 @@ function main() {
     fs.copyFileSync(path.join(ROOT, "public", "cases", f), path.join(OUT, "cases", f));
   }
   const needed = new Set(data.flatMap((c) => c.items.map((i) => i.image).filter(Boolean)));
+  const missing = [];
   for (const url of needed) {
-    const file = url.replace(/^\/skins\//, "");
+    const file = path.basename(url);
     const src = path.join(ROOT, "public", "skins", file);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, "skins", file));
+    else missing.push(file);
+  }
+  // A page that ships broken image icons is worse than one that fails to
+  // build, so an unresolved render stops the build rather than reaching Pages.
+  if (missing.length) {
+    console.error(`Нет файлов рендеров (${missing.length}): ${missing.slice(0, 5).join(", ")}`);
+    console.error("Запустите npm run import:skins");
+    process.exit(1);
   }
   fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
 
@@ -102,7 +115,7 @@ function main() {
 <meta name="description" content="25 кейсов Zevora: дизайн, дроп-таблицы и анимация открывания.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235B4BFF'/><path d='M10 9h12l-8 7h8l-12 8 5-8h-5z' fill='%23fff'/></svg>">
 <style>
-:root{--void:#05060C;--surface:#0D1020;--elev:#121627;--line:#1E2338;--zev:#5B4BFF;--aqua:#22D3EE;--gold:#F5B841;--text:#E8ECF6;--muted:#8B95AE}
+:root{--cell:128px;--gap:10px;--void:#05060C;--surface:#0D1020;--elev:#121627;--line:#1E2338;--zev:#5B4BFF;--aqua:#22D3EE;--gold:#F5B841;--text:#E8ECF6;--muted:#8B95AE}
 *{box-sizing:border-box}
 body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#141a33,var(--void));color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:inherit}
@@ -132,19 +145,20 @@ dialog::backdrop{background:rgba(4,6,14,.82);backdrop-filter:blur(4px)}
 .sheet header{padding:16px 20px;border-bottom:1px solid var(--line);justify-content:space-between}
 .close{all:unset;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;padding:4px 8px;border-radius:8px}
 .close:hover{color:var(--text);background:rgba(255,255,255,.06)}
-.stage{position:relative;height:320px;display:grid;place-items:center;background:radial-gradient(520px 260px at 50% 55%,rgba(255,255,255,.06),transparent)}
+.stage{position:relative;height:clamp(268px,46vw,330px);display:grid;place-items:center;background:radial-gradient(520px 260px at 50% 55%,rgba(255,255,255,.06),transparent)}
 .stage img{position:absolute;width:min(400px,72vw);aspect-ratio:4/3;object-fit:contain}
 #lid{transform-origin:50% 62%}
 .burst{position:absolute;width:38%;height:46%;border-radius:999px;filter:blur(26px);opacity:0;transform-origin:50% 100%}
 .reel{position:absolute;inset:0;display:none;align-items:center;overflow:hidden}
-.reel .track{display:flex;gap:10px;will-change:transform}
-.reel .cell{width:132px;flex:0 0 132px;height:150px;border-radius:12px;border:1px solid var(--line);background:var(--elev);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px}
-.reel .cell img{position:static;width:104px;height:78px;object-fit:contain}
-.reel .cell span{font-size:10.5px;color:var(--muted);text-align:center;line-height:1.25}
+.reel .track{display:flex;gap:var(--gap);will-change:transform}
+.reel .cell{width:var(--cell);flex:0 0 var(--cell);height:calc(var(--cell) * 1.12);border-radius:12px;border:1px solid var(--line);background:var(--elev);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px;overflow:hidden}
+.reel .cell img{position:static;width:80%;height:56%;object-fit:contain}
+.reel .cell span{font-size:10px;color:var(--muted);text-align:center;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .needle{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--aqua);box-shadow:0 0 16px var(--aqua);transform:translateX(-50%)}
-.won{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:16px}
-.won img{position:static;width:230px;height:172px;object-fit:contain}
-.won b{font-size:19px}
+.won{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:12px;overflow:hidden}
+.won img{position:static;width:min(210px,44vw);height:auto;aspect-ratio:4/3;object-fit:contain;flex:0 1 auto;min-height:0}
+.won b{line-height:1.2}
+.won b{font-size:clamp(15px,4vw,19px)}
 .act{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .btn{all:unset;cursor:pointer;padding:10px 18px;border-radius:12px;background:linear-gradient(120deg,var(--zev),#7C5CFF);font-weight:650;font-size:14px}
 .btn[disabled]{opacity:.5;cursor:default}
@@ -152,11 +166,12 @@ dialog::backdrop{background:rgba(4,6,14,.82);backdrop-filter:blur(4px)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:7px 20px;border-bottom:1px solid rgba(255,255,255,.04)}
 th{color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
-td.r,th.r{text-align:right}
+td.r,th.r{text-align:right;white-space:nowrap}
+td:first-child{width:99%}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:middle}
 .tbl{max-height:270px;overflow:auto}
 footer{margin-top:44px;color:var(--muted);font-size:12.5px;line-height:1.7}
-@media(max-width:560px){.stage{height:260px}.reel .cell{width:108px;flex-basis:108px}}
+@media(max-width:560px){:root{--cell:92px;--gap:8px}.stage img{width:min(300px,68vw)}.act{padding:12px 14px}th,td{padding:7px 14px}.sheet header{padding:13px 14px}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -290,7 +305,10 @@ async function play() {
     (i.image ? '<img src="' + i.image + '" alt="">' : "") +
     '<span>' + i.name + '</span></div>').join("");
   $("reel").style.display = "flex";
-  const cell = window.matchMedia("(max-width:560px)").matches ? 118 : 142;
+  // Read the cell pitch from CSS so the reel and the stylesheet can never
+  // disagree about where the winning cell lands.
+  const css = getComputedStyle(document.documentElement);
+  const cell = parseFloat(css.getPropertyValue("--cell")) + parseFloat(css.getPropertyValue("--gap"));
   const stageW = $("stage").clientWidth;
   const target = WIN * cell + cell / 2 - stageW / 2 + (Math.random() - 0.5) * (cell * 0.5);
   const track = $("track");

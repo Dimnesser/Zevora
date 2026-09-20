@@ -5,12 +5,20 @@
  * case-catalogue.mjs, then weights are solved so the case lands on its
  * target margin.
  *
- * The weight curve is w_i ∝ (1 / price_i)^alpha: cheap items are common,
- * expensive ones rare, and `alpha` is the single knob. Raising alpha
- * pushes probability toward the cheap end and lowers the expected value,
- * so a bisection on alpha hits any reachable margin exactly — with the
- * ordering "cheaper is likelier" guaranteed by construction rather than
- * hand-tuned per item.
+ * The weight curve is geometric over the price rank: sorted cheapest
+ * first, item i gets weight r^i. That is how Valve's own cases are
+ * shaped — each tier roughly N times rarer than the one below it — and
+ * it degrades gracefully: every item keeps a share proportional to its
+ * neighbours instead of the tail collapsing onto the weight floor.
+ *
+ * A power law on price (w ∝ (1/price)^alpha) was tried first and is
+ * wrong here: the price range inside one case spans three orders of
+ * magnitude, so the alpha needed to hit a low margin drives everything
+ * above the third-cheapest item to the same minimum weight. The result
+ * reads as "0.0010%" down the whole table with no gradation.
+ *
+ * EV rises monotonically with r, so a bisection on r hits any reachable
+ * margin exactly, and "cheaper is likelier" holds by construction.
  *
  *   node scripts/build-case-catalogue.mjs
  */
@@ -21,7 +29,7 @@ import { CASES } from "./case-catalogue.mjs";
 
 const SEED = path.join(process.cwd(), "lib", "server", "seed-data.ts");
 const OUT = path.join(process.cwd(), "lib", "server", "cases.json");
-const TOTAL_WEIGHT = 100000;
+const TOTAL_WEIGHT = 10000000;
 
 /** Reads the skin catalogue straight out of the seed source. */
 function readSkins() {
@@ -41,31 +49,28 @@ const ev = (items, ws) => {
   return items.reduce((a, it, i) => a + (ws[i] * it.price) / total, 0);
 };
 
-/** w_i ∝ (1/price)^alpha, normalised so nothing underflows to zero. */
-function weightsFor(items, alpha) {
-  const raw = items.map((it) => Math.pow(1 / Math.max(it.price, 1), alpha));
-  const max = Math.max(...raw);
-  return raw.map((r) => r / max);
+/** Geometric decay over the price rank; `items` must be cheapest first. */
+function weightsFor(items, ratio) {
+  return items.map((_, i) => Math.pow(ratio, i));
 }
 
 /**
- * Bisect alpha so the case hits its target expected value.
+ * Bisect the decay ratio so the case hits its target expected value.
  *
- * EV falls monotonically as alpha rises, so the bracket only has to be
- * wide enough to contain the answer. Negative alpha is allowed and is
- * what a premium case needs: it tilts probability toward the expensive
- * end instead of away from it.
+ * r → 0 concentrates everything on the cheapest item (lowest EV);
+ * r → 1 is uniform (highest EV). The bracket is clamped rather than
+ * extended, and the caller checks the resulting margin, so a pool that
+ * cannot reach the target surfaces as a build error instead of a
+ * silently wrong case.
  */
 function solve(items, targetEv) {
-  let lo = -8, hi = 8;
-  const at = (a) => ev(items, weightsFor(items, a));
-  // Uniform weights are the most a case can pay out before the curve
-  // starts favouring the jackpot; clamp rather than run away.
-  if (at(lo) < targetEv) return lo;
-  if (at(hi) > targetEv) return hi;
+  let lo = 0.02, hi = 0.999;
+  const at = (r) => ev(items, weightsFor(items, r));
+  if (at(hi) < targetEv) return hi;
+  if (at(lo) > targetEv) return lo;
   for (let i = 0; i < 200; i++) {
     const mid = (lo + hi) / 2;
-    if (at(mid) > targetEv) lo = mid; else hi = mid;
+    if (at(mid) < targetEv) lo = mid; else hi = mid;
   }
   return (lo + hi) / 2;
 }
@@ -115,7 +120,7 @@ function main() {
     if (c.price === 0) {
       // The partner case is free, so there is no margin to solve — weight
       // it by rarity instead, cheapest most likely.
-      ws = weightsFor(items, 0.9);
+      ws = weightsFor(items, 0.62);
     } else {
       const target = c.price * (1 - c.pool.margin);
       ws = weightsFor(items, solve(items, target));
@@ -137,6 +142,8 @@ function main() {
       slug: c.slug, price: c.price, items: items.length, ev: Math.round(realEv),
       margin: c.price ? 1 - realEv / c.price : null,
       target: c.pool.margin, cheapest: items[0].price,
+      topChanceFloor: Math.min(...weights) / weights.reduce((a, b) => a + b, 0),
+      best: weights[0] / weights.reduce((a, b) => a + b, 0),
       top: items[items.length - 1].market_name,
       topChance: weights[weights.length - 1] / weights.reduce((a, b) => a + b, 0),
     });
@@ -145,15 +152,25 @@ function main() {
   // A case whose pool cannot back its price is a design bug, not something
   // to ship quietly: the solver clamps and the margin silently goes wrong.
   const broken = report.filter((r) => r.margin != null && Math.abs(r.margin - r.target) > 0.08);
-  if (broken.length) {
-    for (const b of broken) {
-      console.error(
-        `\x1b[31m✗\x1b[0m ${b.slug}: маржа ${(b.margin * 100).toFixed(0)}% вместо ${(b.target * 100).toFixed(0)}% — ` +
-        `пул (${b.items} предм., от ${f(b.cheapest)} ₽) не тянет цену ${f(b.price)} ₽`,
-      );
-    }
-    process.exitCode = 1;
+  for (const b of broken) {
+    console.error(
+      `\x1b[31m✗\x1b[0m ${b.slug}: маржа ${(b.margin * 100).toFixed(0)}% вместо ${(b.target * 100).toFixed(0)}% — ` +
+      `пул (${b.items} предм., от ${f(b.cheapest)} ₽) не тянет цену ${f(b.price)} ₽`,
+    );
   }
+
+  // A table that technically hits its margin can still be unplayable: one
+  // item at 80% with the rest rounded to nothing reads as broken and is no
+  // fun to open. Both ends of the curve have to stay meaningful.
+  const flat = report.filter((r) => r.best > 0.62 || r.topChance < 0.00005);
+  for (const b of flat) {
+    console.error(
+      `\x1b[31m✗\x1b[0m ${b.slug}: вырожденная таблица — самый частый предмет ${(b.best * 100).toFixed(1)}%, ` +
+      `джекпот ${(b.topChance * 100).toFixed(4)}%. Сузьте ceil или поправьте маржу.`,
+    );
+  }
+
+  if (broken.length || flat.length) process.exitCode = 1;
 
   fs.writeFileSync(OUT, JSON.stringify(out, null, 2) + "\n");
 
