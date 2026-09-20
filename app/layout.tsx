@@ -66,7 +66,7 @@ export default function RootLayout({
         <SessionProvider>
           <Navbar />
           {/* Top padding clears the fixed navbar; bottom clears the mobile tabs. */}
-          <main className="pb-28 pt-16 sm:pt-[68px] lg:pb-0">{children}</main>
+          <main className="pb-28 pt-[var(--nav-h)] lg:pb-0">{children}</main>
           <Footer />
           <MobileNav />
           <Toaster />

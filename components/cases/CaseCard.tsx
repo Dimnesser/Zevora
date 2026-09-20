@@ -174,10 +174,17 @@ function CaseCardBase({ kase, locked = false, index = 0, className }: CaseCardPr
             {kase.name}
           </h3>
 
-          <div className="mt-1.5 flex items-center justify-between gap-2">
-            <span className="meta">{kase.item_count ?? 0} предметов</span>
+          {/* Tight tracking here so both labels stay on one line at 390px,
+              where the card is barely 170px wide. */}
+          <div className="mt-1.5 flex items-baseline justify-between gap-2 whitespace-nowrap">
+            <span className="meta text-[9px] tracking-[0.07em]">
+              {kase.item_count ?? 0} предм.
+            </span>
             {kase.best_price_minor ? (
-              <span className="meta tnum" style={{ color: accent }}>
+              <span
+                className="meta tnum text-[9px] tracking-[0.07em]"
+                style={{ color: accent }}
+              >
                 до {formatMinor(kase.best_price_minor)}
               </span>
             ) : null}

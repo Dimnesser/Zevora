@@ -22,7 +22,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="pb-safe fixed inset-x-0 bottom-0 z-[80] border-t border-white/[0.08] bg-void/85 px-2 pt-1.5 backdrop-blur-xl lg:hidden">
+    <nav className="pb-safe fixed inset-x-0 bottom-0 z-[80] border-t border-line bg-void/90 px-2 pt-1.5 shadow-[0_-8px_30px_-12px_rgba(0,0,0,.9)] backdrop-blur-xl lg:hidden">
       <ul className="mx-auto flex max-w-lg items-end justify-between">
         {TABS.map((tab) => {
           const active =
@@ -42,10 +42,10 @@ export function MobileNav() {
                   <span
                     className={cn(
                       "-mt-6 flex h-[52px] w-[52px] items-center justify-center rounded-lg transition-all duration-300",
-                      "bg-[linear-gradient(135deg,#5B4BFF,#7C5CFF_55%,#22D3EE)]",
+                      "border border-zev-400/60 bg-zev-500",
                       active
-                        ? "shadow-[0_10px_34px_-8px_rgba(91,75,255,1)]"
-                        : "shadow-[0_8px_24px_-10px_rgba(91,75,255,.9)]",
+                        ? "shadow-[inset_0_1px_0_0_rgba(255,255,255,.28),0_12px_34px_-10px_rgba(91,75,255,1)]"
+                        : "shadow-[inset_0_1px_0_0_rgba(255,255,255,.22),0_8px_24px_-12px_rgba(91,75,255,.9)]",
                     )}
                   >
                     <Icon size={22} className="text-white" />
@@ -73,8 +73,8 @@ export function MobileNav() {
                 {active && (
                   <motion.span
                     layoutId="mobile-active"
-                    className="absolute -top-[7px] h-[3px] w-8 rounded-full bg-zev-400"
-                    style={{ boxShadow: "0 0 10px #6E71FF" }}
+                    className="absolute -top-[7px] h-[2px] w-8 rounded-full bg-zev-400"
+                    style={{ boxShadow: "0 0 12px 1px rgba(112,117,255,.9)" }}
                     transition={{ type: "spring", stiffness: 420, damping: 34 }}
                   />
                 )}
@@ -87,7 +87,7 @@ export function MobileNav() {
                 />
                 <span
                   className={cn(
-                    "text-[10px] font-medium transition-colors",
+                    "font-mono text-[9.5px] uppercase tracking-[0.1em] transition-colors",
                     active ? "text-white" : "text-slate-500",
                   )}
                 >
