@@ -160,9 +160,18 @@ header{padding:22px 0 8px;display:flex;align-items:center;gap:12px;flex-wrap:wra
   background:rgba(255,255,255,.02);color:var(--muted);font-size:13.5px;
   box-shadow:inset 0 1px 0 0 rgba(255,255,255,.04)}
 .note b{color:var(--text)}
+.note summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+.note summary::-webkit-details-marker{display:none}
+.note summary::after{content:"";width:6px;height:6px;border-right:1.5px solid var(--dim);
+  border-bottom:1.5px solid var(--dim);transform:rotate(45deg);margin-left:auto;transition:transform .25s}
+.note[open] summary::after{transform:rotate(-135deg)}
+.note p{margin:10px 0 0}
 h1{font-size:clamp(30px,5.4vw,52px);margin:20px 0 8px;letter-spacing:-.03em;line-height:1.02;color:#fff}
 .lead{color:var(--muted);margin:0;max-width:62ch}
 
+/* auto-fill collapses to a single full-width tile below ~430px, which
+   turns the catalogue into one case per screen. The phone gets an
+   explicit two-column grid, matching the app. */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:14px;margin-top:28px}
 
 /* The card mirrors the app's: a lit stage for the case, then a data block
@@ -256,7 +265,18 @@ td:first-child{width:99%}
 .tbl{max-height:270px;overflow:auto}
 footer{margin-top:44px;color:var(--dim);font-size:12.5px;line-height:1.7}
 @media(max-width:560px){:root{--cell:92px;--gap:8px}.stage img{width:min(300px,68vw)}
-  .act{padding:12px 14px}th,td{padding:7px 14px}.sheet header{padding:12px 14px}}
+  .act{padding:12px 14px}th,td{padding:7px 14px}.sheet header{padding:12px 14px}
+  .wrap{padding:0 12px 84px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px}
+  h1{margin:14px 0 6px}
+  .note{margin:14px 0 18px;padding:11px 13px;font-size:12.5px}
+  .meta-block{padding:8px 9px 10px;gap:5px}
+  .nm{font-size:13px}
+  /* Tighter tracking so both labels stay on one line on a ~150px tile */
+  .meta-block .row .meta{font-size:9px;letter-spacing:.07em}
+  .rail{height:34px;padding:0 9px}
+  .price{font-size:13.5px}
+  .tag{font-size:8px;padding:2px 4px}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -267,12 +287,13 @@ footer{margin-top:44px;color:var(--dim);font-size:12.5px;line-height:1.7}
   <h1>25 кейсов</h1>
   <p class="lead">Дизайн собран в Figma и отрисован в WebP, дроп-таблицы сбалансированы на маржу 36–44%, предметы — настоящие рендеры CS2 от Valve.</p>
 
-  <div class="note">
-    <b>Это витрина, а не сам сайт.</b> Zevora устроена так, что розыгрыш считается только на сервере:
+  <details class="note" id="note" open>
+    <summary><b>Это витрина, а не сам сайт</b></summary>
+    <p>Zevora устроена так, что розыгрыш считается только на сервере:
     SQLite, сессии, транзакционное списание баланса и криптографический генератор за API. GitHub Pages
     отдаёт статику, поэтому здесь показаны дизайн кейсов, их настоящие дроп-таблицы и анимация открывания,
-    а сам розыгрыш на этой странице — клиентский и ни на что не влияет. Рабочее приложение требует Node-хостинга.
-  </div>
+    а сам розыгрыш на этой странице — клиентский и ни на что не влияет. Рабочее приложение требует Node-хостинга.</p>
+  </details>
 
   <div class="grid">${cards}</div>
 
@@ -307,6 +328,12 @@ footer{margin-top:44px;color:var(--dim);font-size:12.5px;line-height:1.7}
 </dialog>
 
 <script>
+// On a phone the explainer pushes the catalogue a full screen down, so it
+// starts collapsed there and stays open on wider viewports.
+if (window.matchMedia("(max-width:560px)").matches) {
+  document.getElementById("note").removeAttribute("open");
+}
+
 const CASES = ${JSON.stringify(data)};
 const RARITY = ${JSON.stringify(RARITY)};
 const money = (v) => v.toLocaleString("ru-RU") + " ₽";
