@@ -1,7 +1,6 @@
 "use client";
 
-import { motion, useAnimationControls } from "framer-motion";
-import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -33,39 +32,14 @@ export function UpgradeDial({
   onSettled,
   size = 280,
 }: UpgradeDialProps) {
-  const controls = useAnimationControls();
-  const [flash, setFlash] = useState<"none" | "win" | "lose">("none");
-
-  useEffect(() => {
-    if (state !== "spinning") return;
-    setFlash("none");
-    controls.set({ rotate: 0 });
-    const run = controls.start({
-      rotate: rotation,
-      transition: { duration: durationMs / 1000, ease: [0.16, 0.86, 0.19, 1] },
-    });
-    let cancelled = false;
-    void run.then(() => {
-      if (!cancelled) onSettled();
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, rotation, durationMs, controls]);
-
-  useEffect(() => {
-    if (state === "win") setFlash("win");
-    else if (state === "lose") setFlash("lose");
-    else if (state === "idle") {
-      setFlash("none");
-      controls.set({ rotate: 0 });
-    }
-  }, [state, controls]);
+  const spinning = state === "spinning";
+  // Idle parks the needle at twelve o'clock; every other state holds the
+  // angle the outcome landed on.
+  const angle = state === "idle" ? 0 : rotation;
 
   const arc = CIRC * Math.max(0, Math.min(1, chance));
   const accent =
-    flash === "win" ? "#2FD98A" : flash === "lose" ? "#FF4D5E" : "#6E71FF";
+    state === "win" ? "#2FD98A" : state === "lose" ? "#FF4D5E" : "#6E71FF";
 
   return (
     <div
@@ -80,12 +54,11 @@ export function UpgradeDial({
         className="pointer-events-none absolute inset-4 rounded-full blur-[46px]"
         style={{ background: accent }}
         animate={{
-          opacity:
-            state === "spinning" ? [0.25, 0.5, 0.25] : flash !== "none" ? 0.55 : 0.2,
+          opacity: spinning ? [0.25, 0.5, 0.25] : state === "idle" ? 0.2 : 0.55,
         }}
         transition={{
-          duration: state === "spinning" ? 1.4 : 0.5,
-          repeat: state === "spinning" ? Infinity : 0,
+          duration: spinning ? 1.4 : 0.5,
+          repeat: spinning ? Infinity : 0,
         }}
       />
 
@@ -147,8 +120,32 @@ export function UpgradeDial({
           );
         })}
 
-        {/* needle */}
-        <motion.g animate={controls} style={{ originX: "120px", originY: "120px" }}>
+      </svg>
+
+      {/*
+        The needle rotates as an HTML layer rather than as an SVG group.
+        Framer Motion animates `rotate` on a <g> without ever committing a
+        transform — the value ran, the completion callback fired on time,
+        and the needle never moved, which is exactly what "анимация не
+        работает" looked like. A div covering the dial has its origin at
+        its own centre by definition, so the same geometry rotates
+        correctly with nothing to configure.
+      */}
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        animate={{ rotate: angle }}
+        transition={
+          spinning
+            ? { duration: durationMs / 1000, ease: [0.16, 0.86, 0.19, 1] }
+            : { duration: 0 }
+        }
+        onAnimationComplete={() => {
+          // The instant reset back to idle completes too; only a spin counts.
+          if (spinning) onSettled();
+        }}
+      >
+        <svg viewBox="0 0 240 240" className="h-full w-full">
           <line
             x1="120"
             y1="120"
@@ -164,8 +161,15 @@ export function UpgradeDial({
             fill={accent}
             style={{ filter: `drop-shadow(0 0 8px ${accent})` }}
           />
-        </motion.g>
+        </svg>
+      </motion.div>
 
+      {/* The hub caps the needle's base, so it is drawn over it. */}
+      <svg
+        aria-hidden
+        viewBox="0 0 240 240"
+        className="pointer-events-none absolute inset-0 h-full w-full"
+      >
         <circle cx="120" cy="120" r="9" fill="#0D1020" stroke={accent} strokeWidth="2" />
       </svg>
 

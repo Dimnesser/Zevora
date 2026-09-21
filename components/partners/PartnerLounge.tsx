@@ -117,7 +117,7 @@ export function PartnerLounge({
                   initial={{ pathLength: 0, rotate: -30 }}
                   animate={{ pathLength: 1, rotate: 0 }}
                   transition={{ duration: 1, ease: "easeInOut" }}
-                  style={{ originX: "100px", originY: "100px" }}
+                  style={{ transformOrigin: "100px 100px" }}
                 />
                 <motion.path
                   d="M72 66 H132 L92 108 H132 V134 H72 L112 92 H72 Z"
@@ -125,7 +125,7 @@ export function PartnerLounge({
                   initial={{ opacity: 0, scale: 0.5 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.55, duration: 0.5 }}
-                  style={{ originX: "100px", originY: "100px" }}
+                  style={{ transformOrigin: "100px 100px" }}
                 />
               </svg>
               <motion.p

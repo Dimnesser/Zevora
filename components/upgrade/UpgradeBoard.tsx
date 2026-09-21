@@ -35,6 +35,13 @@ interface Settled {
   stakeMinor: number;
   targetName: string;
   wonMinor: number;
+  /**
+   * The staked items, copied at submit time. The server consumes them and
+   * the inventory reload drops them, so without a copy the stake slot
+   * would empty out mid-spin — which is precisely when a player is
+   * looking at it.
+   */
+  stakeItems: InventoryItem[];
 }
 
 /**
@@ -78,18 +85,23 @@ export function UpgradeBoard() {
     [inventory],
   );
 
-  const stakeItems = owned.filter((i) => stakeIds.includes(i.id));
-  const liveStake = stakeItems.reduce((s, i) => s + i.price_minor, 0);
+  const liveStakeItems = owned.filter((i) => stakeIds.includes(i.id));
+  const liveStake = liveStakeItems.reduce((s, i) => s + i.price_minor, 0);
 
   const isSettled = state === "win" || state === "lose";
-  const stakeValue = isSettled && settled ? settled.stakeMinor : liveStake;
+  // Once an attempt is submitted the panel shows what was staked, not
+  // what is currently selected — the spin, the result and everything in
+  // between describe the same attempt.
+  const frozen = state !== "idle" ? settled : null;
+  const stakeItems = frozen?.stakeItems ?? liveStakeItems;
+  const stakeValue = frozen?.stakeMinor ?? liveStake;
   const liveChance = target
     ? Math.min(MAX_CHANCE, Math.max(0.01, (liveStake / target.price_minor) * HOUSE_EDGE))
     : 0;
-  const chance = isSettled && settled ? settled.chance : liveChance;
+  const chance = frozen?.chance ?? liveChance;
   const multiplier = target && stakeValue > 0 ? target.price_minor / stakeValue : 0;
   const profit = target ? target.price_minor - stakeValue : 0;
-  const canStart = stakeItems.length > 0 && Boolean(target) && state === "idle";
+  const canStart = liveStakeItems.length > 0 && Boolean(target) && state === "idle";
 
   const toggleStake = (id: number) => {
     if (state === "spinning") return;
@@ -127,6 +139,7 @@ export function UpgradeBoard() {
       setRotation(5 * 360 + landing);
       setSettled({
         success: res.success,
+        stakeItems: liveStakeItems,
         chance: res.chance,
         rotation: 5 * 360 + landing,
         stakeMinor: res.stake_minor,
@@ -187,7 +200,7 @@ export function UpgradeBoard() {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-white">Ваш предмет</h2>
           <span className="text-[12px] text-slate-500">
-            {stakeItems.length}/{MAX_STAKE}
+            {liveStakeItems.length}/{MAX_STAKE}
           </span>
         </div>
         <StakePicker items={owned} selected={stakeIds} onToggle={toggleStake} />
@@ -200,7 +213,7 @@ export function UpgradeBoard() {
             items={stakeItems}
             valueMinor={stakeValue}
             empty={isSettled ? "Ставка сгорела" : "Выберите предмет"}
-            onClear={stakeItems.length && state === "idle" ? () => setStakeIds([]) : undefined}
+            onClear={liveStakeItems.length && state === "idle" ? () => setStakeIds([]) : undefined}
           />
           <ArrowRight size={18} className="shrink-0 text-slate-600" />
           <StageSlot
@@ -260,7 +273,7 @@ export function UpgradeBoard() {
                 </Button>
                 {!canStart && state === "idle" && (
                   <p className="mt-2.5 text-center text-[12.5px] text-slate-500">
-                    {stakeItems.length === 0
+                    {liveStakeItems.length === 0
                       ? "Выберите предмет из инвентаря"
                       : "Выберите предмет, который хотите получить"}
                   </p>

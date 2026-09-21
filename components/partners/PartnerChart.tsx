@@ -53,8 +53,13 @@ export function PartnerChart({ series }: { series: ActivityPoint[] }) {
     const top = Math.max(Math.ceil(rawMax / magnitude) * magnitude, 1);
     const step = series.length > 1 ? PLOT_W / (series.length - 1) : 0;
 
+    // `rawMax` carries a floor of 1 so an all-zero series still gets a
+    // sensible axis — but that floor is not a value in the series, so
+    // looking it up returns -1 and `points[-1]` is undefined. A brand-new
+    // partner has nothing but zeros, which crashed the whole page.
+    const peak = Math.max(...values, 0);
     return {
-      peakIndex: values.indexOf(rawMax),
+      peakIndex: peak > 0 ? values.indexOf(peak) : -1,
       points: values.map((v, i) => ({
         x: PAD.left + i * step,
         y: PAD.top + PLOT_H - (v / top) * PLOT_H,
@@ -166,14 +171,17 @@ export function PartnerChart({ series }: { series: ActivityPoint[] }) {
             style={{ filter: `drop-shadow(0 0 6px ${active.color}55)` }}
           />
 
-          <circle
-            cx={points[peakIndex].x}
-            cy={points[peakIndex].y}
-            r="4"
-            fill={active.color}
-            stroke="#0D1020"
-            strokeWidth="2"
-          />
+          {/* No peak to mark when nothing has happened yet. */}
+          {peakIndex >= 0 && (
+            <circle
+              cx={points[peakIndex].x}
+              cy={points[peakIndex].y}
+              r="4"
+              fill={active.color}
+              stroke="#0D1020"
+              strokeWidth="2"
+            />
+          )}
 
           {series.map((d, i) =>
             i % (PLOT_W < 460 ? 3 : 2) === 0 ? (
@@ -230,8 +238,17 @@ export function PartnerChart({ series }: { series: ActivityPoint[] }) {
       </div>
 
       <p className="mt-2 text-center text-[11.5px] text-slate-500">
-        {active.label} за последние 14 дней · максимум{" "}
-        <span className="font-semibold text-slate-300">{format(points[peakIndex].v)}</span>
+        {active.label} за последние 14 дней
+        {peakIndex >= 0 ? (
+          <>
+            {" · максимум "}
+            <span className="font-semibold text-slate-300">
+              {format(points[peakIndex].v)}
+            </span>
+          </>
+        ) : (
+          " · пока пусто"
+        )}
       </p>
     </div>
   );
