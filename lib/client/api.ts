@@ -205,6 +205,32 @@ export interface OpenResult {
   audit: { roll: number; total_weight: number };
 }
 
+export type WithdrawalStatus =
+  | "pending"
+  | "sent"
+  | "completed"
+  | "rejected"
+  | "cancelled";
+
+export interface Withdrawal {
+  id: string;
+  status: WithdrawalStatus;
+  item_count: number;
+  value_minor: number;
+  note: string | null;
+  created_at: number;
+  resolved_at: number | null;
+  trade_url_hint: string;
+  items?: {
+    id: number;
+    market_name: string;
+    price_minor: number;
+    wear: string;
+    image_url: string | null;
+    rarity: { slug: string; color: string };
+  }[];
+}
+
 export type OrderStatus = "pending" | "paid" | "failed" | "expired" | "cancelled";
 
 export interface PaymentOrder {
@@ -282,9 +308,22 @@ export const api = {
       { method: "POST", body: JSON.stringify({ ids }) },
     ),
   withdraw: (ids: number[], tradeUrl: string) =>
-    request<{ queued: number }>("/api/inventory/withdraw", {
+    request<{ queued: number; withdrawal: Withdrawal }>("/api/inventory/withdraw", {
       method: "POST",
       body: JSON.stringify({ ids, trade_url: tradeUrl }),
+    }),
+  withdrawals: () =>
+    request<{ withdrawals: Withdrawal[] }>("/api/inventory/withdraw"),
+  cancelWithdrawal: (id: string) =>
+    request<{ withdrawal: Withdrawal }>(`/api/withdrawals/${id}`, { method: "DELETE" }),
+  adminWithdrawals: (status = "all") =>
+    request<{ withdrawals: (Withdrawal & { username: string; trade_url: string })[] }>(
+      `/api/admin/withdrawals?status=${status}`,
+    ),
+  adminSetWithdrawal: (id: string, status: string, note?: string) =>
+    request<{ withdrawal: Withdrawal }>(`/api/admin/withdrawals/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, note }),
     }),
 
   // history

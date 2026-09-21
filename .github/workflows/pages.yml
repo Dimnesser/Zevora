@@ -74,6 +74,9 @@ jobs:
         run: npm run build:static
         env:
           ZEVORA_BASE_PATH: /${{ github.event.repository.name }}
+          # So sitemap.xml carries the address the site is actually served
+          # from rather than the placeholder.
+          ZEVORA_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
 
       - name: Push docs/ to gh-pages
         run: |

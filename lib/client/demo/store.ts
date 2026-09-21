@@ -35,6 +35,18 @@ export interface DemoOrder {
   simulated: boolean;
 }
 
+export interface DemoWithdrawal {
+  id: string;
+  status: "pending" | "sent" | "completed" | "rejected" | "cancelled";
+  item_count: number;
+  value_minor: number;
+  note: string | null;
+  created_at: number;
+  resolved_at: number | null;
+  trade_url_hint: string;
+  item_ids: number[];
+}
+
 export interface DemoState {
   version: 1;
   user: SessionUser | null;
@@ -47,6 +59,8 @@ export interface DemoState {
   idempotency: Record<string, unknown>;
   /** Top-up orders, mirroring the server's payment_orders table. */
   orders: DemoOrder[];
+  /** Withdrawal requests, mirroring the server's withdrawals table. */
+  withdrawals: DemoWithdrawal[];
 }
 
 function blank(): DemoState {
@@ -59,6 +73,7 @@ function blank(): DemoState {
     openings: [],
     idempotency: {},
     orders: [],
+    withdrawals: [],
   };
 }
 
@@ -74,6 +89,7 @@ export function load(): DemoState {
     // A state written before orders existed is still version 1; filling
     // the gap costs one line and beats discarding somebody's inventory.
     if (!cache.orders) cache.orders = [];
+    if (!cache.withdrawals) cache.withdrawals = [];
   } catch {
     // Private mode, blocked storage, corrupted JSON — a fresh account is
     // a better outcome than a page that will not render.

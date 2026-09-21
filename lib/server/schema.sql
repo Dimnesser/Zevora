@@ -181,6 +181,8 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   source_case_id INTEGER REFERENCES cases(id) ON DELETE SET NULL,
   status         TEXT    NOT NULL DEFAULT 'owned'
                    CHECK (status IN ('owned','withdrawing','withdrawn','sold','consumed')),
+  -- Set while the item is part of an open withdrawal request.
+  withdrawal_id  INTEGER REFERENCES withdrawals(id) ON DELETE SET NULL,
   acquired_at    INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL
 );
@@ -255,6 +257,31 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at          INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at DESC);
+
+-- ─────────────── withdrawals ───────────────
+
+-- A withdrawal is a request an operator fulfils, not a status an item
+-- drifts into. Without this the item sat in 'withdrawing' forever: the
+-- player could not cancel it and nobody could complete it.
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id   TEXT    NOT NULL UNIQUE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- Copied at request time: a later profile edit must not redirect an
+  -- offer that is already in flight.
+  trade_url   TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','sent','completed','rejected','cancelled')),
+  item_count  INTEGER NOT NULL CHECK (item_count > 0),
+  value_minor INTEGER NOT NULL CHECK (value_minor >= 0),
+  note        TEXT,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
+  resolved_at INTEGER,
+  resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status, created_at);
 
 -- ─────────────── payments ───────────────
 

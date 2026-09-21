@@ -382,13 +382,63 @@ async function route(path: string, method: string, body: Record<string, unknown>
     });
   }
 
+  if (route === "inventory/withdraw" && method === "GET") {
+    return { withdrawals: snapshot(state.withdrawals) };
+  }
+
   if (route === "inventory/withdraw") {
     const ids = (body.ids as number[]) ?? [];
+    const tradeUrl = String(body.trade_url ?? "");
+    if (!/^https:\/\/steamcommunity\.com\/tradeoffer\/new\/\?partner=\d+&token=[\w-]+$/.test(tradeUrl)) {
+      fail("invalid_input", "Укажите корректную ссылку на обмен Steam", 422);
+    }
     return mutate((s) => {
       const rows = s.inventory.filter((i) => ids.includes(i.id) && i.status === "owned");
       if (rows.length === 0) fail("conflict", "Предметы недоступны", 409);
+      const withdrawal = {
+        id: randomId(),
+        status: "pending" as const,
+        item_count: rows.length,
+        value_minor: rows.reduce((sum, i) => sum + i.price_minor, 0),
+        note: null,
+        created_at: now(),
+        resolved_at: null,
+        trade_url_hint: tradeUrl.slice(-12),
+        item_ids: rows.map((i) => i.id),
+      };
       rows.forEach((i) => (i.status = "withdrawing"));
-      return { queued: rows.length };
+      s.withdrawals.unshift(withdrawal);
+      s.transactions.unshift({
+        id: s.seq.tx++,
+        kind: "withdraw",
+        label: `Заявка на вывод — ${rows.length} предм.`,
+        amount_minor: 0,
+        balance_after_minor: requireUser(s).balance_minor,
+        created_at: now(),
+      });
+      return {
+        queued: rows.length,
+        withdrawal: snapshot(withdrawal),
+      };
+    });
+  }
+
+  const cancelWithdrawal = route.match(/^withdrawals\/([^/]+)$/);
+  if (cancelWithdrawal && method === "DELETE") {
+    return mutate((s) => {
+      const w = s.withdrawals.find((x) => x.id === cancelWithdrawal[1]);
+      if (!w) fail("not_found", "Заявка не найдена", 404);
+      if (w.status !== "pending") fail("conflict", "Заявка уже закрыта", 409);
+      w.status = "cancelled";
+      w.resolved_at = now();
+      // The items come back, which is the whole point of being able to
+      // cancel: nothing may be left held by a closed request.
+      for (const item of s.inventory) {
+        if (w.item_ids.includes(item.id) && item.status === "withdrawing") {
+          item.status = "owned";
+        }
+      }
+      return { withdrawal: snapshot(w) };
     });
   }
 

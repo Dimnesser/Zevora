@@ -516,6 +516,76 @@ async function main() {
   });
   check("После снятия закрытый кейс недоступен", r.status === 403, `got ${r.status}`);
 
+  // ───────────── withdrawals ─────────────
+  section("Вывод предметов");
+
+  const wd = makeClient();
+  const wdName = `wd_${rnd()}`;
+  await wd("/api/auth/register", { method: "POST", body: { username: wdName, password: "secret123" } });
+  await fund(wd, 5000);
+  for (let i = 0; i < 4; i++) {
+    await wd(`/api/cases/${cheap.slug}/open`, { method: "POST", headers: { "idempotency-key": `wd${i}${rnd()}` } });
+  }
+  const wdInv = (await wd("/api/inventory")).json.items.filter((i) => i.status === "owned");
+  const TRADE = "https://steamcommunity.com/tradeoffer/new/?partner=123456&token=AbC-dEf";
+
+  r = await wd("/api/inventory/withdraw", { method: "POST", body: { ids: [wdInv[0].id], trade_url: "http://evil.example/steal" } });
+  check("Некорректная ссылка на обмен отклонена", r.status === 422, `got ${r.status}`);
+
+  r = await wd("/api/inventory/withdraw", { method: "POST", body: { ids: [wdInv[0].id, wdInv[1].id], trade_url: TRADE } });
+  const wdId = r.json?.withdrawal?.id;
+  check("Заявка на вывод создаётся", r.status === 200 && r.json?.queued === 2, `got ${r.status}`);
+  check("Заявка начинается со статуса pending", r.json?.withdrawal?.status === "pending");
+
+  let heldInv = (await wd("/api/inventory")).json.items;
+  check("Предметы удержаны, а не удалены",
+        heldInv.filter((i) => i.status === "withdrawing").length === 2);
+
+  r = await wd("/api/inventory/withdraw", { method: "POST", body: { ids: [wdInv[0].id], trade_url: TRADE } });
+  check("Повторная заявка на удержанный предмет отклонена", r.status === 409, `got ${r.status}`);
+
+  r = await bob(`/api/withdrawals/${wdId}`, { method: "DELETE" });
+  check("Чужую заявку нельзя отменить", r.status === 404, `got ${r.status}`);
+
+  r = await bob("/api/admin/withdrawals");
+  check("Очередь выводов закрыта от обычного пользователя", r.status === 403, `got ${r.status}`);
+
+  r = await wd(`/api/withdrawals/${wdId}`, { method: "DELETE" });
+  check("Игрок отменяет свою заявку", r.status === 200 && r.json?.withdrawal?.status === "cancelled",
+        `got ${r.status}`);
+  heldInv = (await wd("/api/inventory")).json.items;
+  check("После отмены предметы вернулись во владение",
+        heldInv.filter((i) => i.status === "owned").length === wdInv.length,
+        `owned=${heldInv.filter((i) => i.status === "owned").length} из ${wdInv.length}`);
+
+  r = await wd(`/api/withdrawals/${wdId}`, { method: "DELETE" });
+  check("Повторная отмена отклонена", r.status === 409, `got ${r.status}`);
+
+  // Полный путь: заявка → отправлен → принят.
+  const liveItems = (await wd("/api/inventory")).json.items.filter((i) => i.status === "owned");
+  r = await wd("/api/inventory/withdraw", { method: "POST", body: { ids: [liveItems[0].id], trade_url: TRADE } });
+  const liveId = r.json.withdrawal.id;
+
+  r = await owner(`/api/admin/withdrawals/${liveId}`, { method: "PATCH", body: { status: "completed" } });
+  check("Нельзя завершить заявку, минуя отправку", r.status === 409, `got ${r.status}`);
+
+  r = await owner(`/api/admin/withdrawals/${liveId}`, { method: "PATCH", body: { status: "sent" } });
+  check("Оператор отмечает обмен отправленным", r.status === 200 && r.json?.withdrawal?.status === "sent");
+
+  r = await wd(`/api/withdrawals/${liveId}`, { method: "DELETE" });
+  check("Отправленный обмен игрок отменить не может", r.status === 409, `got ${r.status}`);
+
+  r = await owner(`/api/admin/withdrawals/${liveId}`, { method: "PATCH", body: { status: "completed" } });
+  check("Оператор подтверждает получение", r.status === 200 && r.json?.withdrawal?.status === "completed");
+
+  const finalInv = (await wd("/api/inventory")).json.items;
+  check("Выведенный предмет исчез из инвентаря",
+        !finalInv.some((i) => i.id === liveItems[0].id),
+        `остался: ${finalInv.some((i) => i.id === liveItems[0].id)}`);
+
+  r = await owner(`/api/admin/withdrawals/${liveId}`, { method: "PATCH", body: { status: "sent" } });
+  check("Закрытую заявку нельзя переоткрыть", r.status === 409, `got ${r.status}`);
+
   // ───────────── bonuses ─────────────
   section("Бонусы");
 

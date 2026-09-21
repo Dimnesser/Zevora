@@ -1,14 +1,37 @@
 import { bootstrap } from "@/lib/server/bootstrap";
-import { withdrawItems } from "@/lib/server/inventory";
-import { ApiError, handler, ok, readJson, requireUser } from "@/lib/server/http";
+import {
+  createWithdrawal,
+  itemsOf,
+  listForUser,
+  publicWithdrawal,
+} from "@/lib/server/withdrawals";
+import {
+  ApiError,
+  handler,
+  ok,
+  rateLimit,
+  readJson,
+  requireUser,
+} from "@/lib/server/http";
 
 export const dynamic = "force-dynamic";
 
 const TRADE_URL_RE = /^https:\/\/steamcommunity\.com\/tradeoffer\/new\/\?partner=\d+&token=[\w-]+$/;
 
+/** The player's own withdrawal requests, newest first. */
+export const GET = handler(async () => {
+  bootstrap();
+  const user = await requireUser();
+  const rows = listForUser(user.id);
+  return ok({
+    withdrawals: rows.map((row) => publicWithdrawal(row, itemsOf(row.id))),
+  });
+});
+
 export const POST = handler(async (req: Request) => {
   bootstrap();
   const user = await requireUser();
+  rateLimit(`withdraw:${user.id}`, 10, 60_000);
 
   const body = await readJson<{ ids?: unknown; trade_url?: unknown }>(req);
   if (typeof body.trade_url !== "string" || !TRADE_URL_RE.test(body.trade_url.trim())) {
@@ -25,5 +48,11 @@ export const POST = handler(async (req: Request) => {
     return id;
   });
 
-  return ok(withdrawItems(user.id, ids));
+  const { withdrawal, queued } = createWithdrawal({
+    userId: user.id,
+    itemIds: ids,
+    tradeUrl: body.trade_url.trim(),
+  });
+
+  return ok({ queued, withdrawal: publicWithdrawal(withdrawal, itemsOf(withdrawal.id)) });
 });

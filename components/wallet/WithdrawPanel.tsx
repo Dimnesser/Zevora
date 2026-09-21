@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/Modal";
+import { WithdrawalList } from "@/components/wallet/WithdrawalList";
 import { formatMinor } from "@/lib/format";
 import { toast } from "@/lib/store/useToast";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,16 @@ export function WithdrawPanel() {
     () => (user ? api.inventory({ sort: "price-desc" }) : Promise.resolve(null)),
     [user?.id],
   );
+  const { data: requests, reload: reloadRequests } = useResource(
+    () => (user ? api.withdrawals() : Promise.resolve(null)),
+    [user?.id],
+  );
+
+  /** Items and requests describe one thing; they refresh together. */
+  const refreshAll = () => {
+    reload();
+    reloadRequests();
+  };
 
   const all = data?.items ?? [];
   const available = useMemo(() => all.filter((i) => i.status === "owned"), [all]);
@@ -50,7 +61,8 @@ export function WithdrawPanel() {
         "Предметы поступят в Steam в течение 5 минут",
       );
       setSelected([]);
-      reload();
+      setTradeUrl("");
+      refreshAll();
     } catch (err) {
       toast.error(
         "Не удалось создать заявку",
@@ -61,7 +73,9 @@ export function WithdrawPanel() {
     }
   };
 
-  if (available.length === 0 && pending.length === 0) {
+  const open = requests?.withdrawals ?? [];
+
+  if (available.length === 0 && pending.length === 0 && open.length === 0) {
     return (
       <EmptyState
         icon={<Send size={22} />}
@@ -90,16 +104,7 @@ export function WithdrawPanel() {
         />
       </Field>
 
-      {pending.length > 0 && (
-        <div className="rounded-lg border border-aqua-400/25 bg-aqua-400/[0.07] px-4 py-3">
-          <p className="text-[13px] font-semibold text-aqua-300">
-            В обработке: {pending.length} предм.
-          </p>
-          <p className="mt-0.5 text-[12px] text-slate-400">
-            Обмен придёт на указанную ссылку. Среднее время — 5 минут.
-          </p>
-        </div>
-      )}
+      <WithdrawalList withdrawals={open} onChange={refreshAll} />
 
       {available.length > 0 && (
         <div>

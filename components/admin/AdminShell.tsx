@@ -11,11 +11,12 @@ import { PlatformStats } from "@/components/admin/PlatformStats";
 import { RaritiesAdmin } from "@/components/admin/RaritiesAdmin";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { WithdrawalsAdmin } from "@/components/admin/WithdrawalsAdmin";
 import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-type Tab = "cases" | "partners" | "rarities" | "stats";
+type Tab = "cases" | "withdrawals" | "partners" | "rarities" | "stats";
 
 export function AdminShell() {
   const { user, ready } = useSession();
@@ -58,6 +59,7 @@ export function AdminShell() {
       <Tabs
         items={[
           { id: "cases", label: "Кейсы" },
+          { id: "withdrawals", label: "Выводы" },
           { id: "partners", label: "Partners" },
           { id: "rarities", label: "Редкости" },
           { id: "stats", label: "Статистика" },
@@ -76,6 +78,7 @@ export function AdminShell() {
           transition={{ duration: 0.2 }}
         >
           {tab === "cases" && <CasesAdmin />}
+          {tab === "withdrawals" && <WithdrawalsAdmin />}
           {tab === "partners" && <PartnersAdmin />}
           {tab === "rarities" && <RaritiesAdmin />}
           {tab === "stats" && <PlatformStats />}

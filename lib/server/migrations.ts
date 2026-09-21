@@ -26,6 +26,7 @@ const COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "skin_images", column: "width", definition: "INTEGER" },
   { table: "skin_images", column: "height", definition: "INTEGER" },
   { table: "skin_images", column: "checked_at", definition: "INTEGER" },
+  { table: "inventory_items", column: "withdrawal_id", definition: "INTEGER" },
 ];
 
 /**
