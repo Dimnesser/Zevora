@@ -33,7 +33,9 @@ export function Tabs<T extends string>({
   return (
     <div
       className={cn(
-        "no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-white/[0.07] bg-white/[0.03] p-1",
+        // Overflow scrolls rather than wraps: on a phone the rarity
+        // filter is a dozen chips, and a swipeable rail beats four rows.
+        "no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-sm border border-line-soft bg-white/[0.025] p-1",
         className,
       )}
       role="tablist"
@@ -47,15 +49,19 @@ export function Tabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(item.id)}
             className={cn(
-              "relative shrink-0 whitespace-nowrap rounded-xl font-medium transition-colors duration-200",
+              "relative shrink-0 whitespace-nowrap rounded-xs font-medium transition-colors duration-200",
+              "focus-visible:outline-none focus-visible:shadow-focus",
               size === "sm" ? "px-3 py-1.5 text-[12.5px]" : "px-4 py-2 text-[13.5px]",
               active ? "text-white" : "text-slate-400 hover:text-slate-200",
+              // A tab with nothing behind it stays reachable but recedes,
+              // so the ladder still reads without competing for attention.
+              !active && item.count === 0 && "opacity-45",
             )}
           >
             {active && (
               <motion.span
                 layoutId={layoutId}
-                className="absolute inset-0 rounded-xl border border-white/10 bg-white/[0.09]"
+                className="absolute inset-0 rounded-xs border border-white/10 bg-white/[0.08] shadow-lip"
                 transition={{ type: "spring", stiffness: 420, damping: 34 }}
               />
             )}
@@ -70,7 +76,7 @@ export function Tabs<T extends string>({
               {item.count !== undefined && (
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-px text-[10.5px] font-semibold tabular-nums",
+                    "rounded-xs px-1.5 py-px font-mono text-[10.5px] font-semibold tnum",
                     active
                       ? "bg-white/15 text-white"
                       : "bg-white/[0.06] text-slate-500",

@@ -41,7 +41,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
   return (
     <section className="surface-panel overflow-hidden rounded-lg">
       {/* ── banner ── */}
-      <div className="relative h-[128px] sm:h-[148px]">
+      <div className="relative h-[96px] sm:h-[148px]">
         <div
           aria-hidden
           className="absolute inset-0"
