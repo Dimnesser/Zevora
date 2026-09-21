@@ -22,10 +22,23 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * The static build published to GitHub Pages has no API to call, so every
+ * request is served by an in-browser backend instead. The import is lazy
+ * so the demo engine and its catalogue never enter the bundle of a build
+ * that talks to a real server.
+ */
+const STATIC_DEMO = process.env.NEXT_PUBLIC_ZEVORA_STATIC === "1";
+
 async function request<T>(
   path: string,
   init: RequestInit & { idempotencyKey?: string } = {},
 ): Promise<T> {
+  if (STATIC_DEMO) {
+    const { demoRequest } = await import("@/lib/client/demo/engine");
+    return demoRequest<T>(path, init);
+  }
+
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json");
   if (init.idempotencyKey) headers.set("idempotency-key", init.idempotencyKey);

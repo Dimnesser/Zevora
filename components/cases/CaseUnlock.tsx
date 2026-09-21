@@ -20,6 +20,13 @@ import { cn } from "@/lib/utils";
  *   <slug>-lid.webp    lid only, in the same 640x480 space
  */
 
+/**
+ * The layers are addressed by slug rather than by the case's image_url,
+ * so they need the deployment prefix applied here — the static build is
+ * served from /<repo>/, not from a domain root.
+ */
+const ASSET_BASE = process.env.NEXT_PUBLIC_ZEVORA_BASE_PATH ?? "";
+
 const RATTLE_MS = 620;
 const BURST_MS = 760;
 export const UNLOCK_MS = RATTLE_MS + BURST_MS;
@@ -151,13 +158,13 @@ export function CaseUnlock({
 
       {/* eslint-disable @next/next/no-img-element */}
       <motion.img
-        src={`/cases/${slug}-body.webp`}
+        src={`${ASSET_BASE}/cases/${slug}-body.webp`}
         alt=""
         animate={body}
         className="absolute inset-0 h-full w-full object-contain"
       />
       <motion.img
-        src={`/cases/${slug}-lid.webp`}
+        src={`${ASSET_BASE}/cases/${slug}-lid.webp`}
         alt=""
         animate={lid}
         className="absolute inset-0 h-full w-full object-contain"

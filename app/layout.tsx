@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
+import { DemoBanner } from "@/components/layout/DemoBanner";
 import { RouteProgress } from "@/components/layout/RouteProgress";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Footer } from "@/components/layout/Footer";
@@ -68,7 +69,11 @@ export default function RootLayout({
           <RouteProgress />
           <Navbar />
           {/* Top padding clears the fixed navbar; bottom clears the mobile tabs. */}
-          <main className="pb-28 pt-[var(--nav-h)] lg:pb-0">{children}</main>
+          <main className="pb-28 pt-[var(--nav-h)] lg:pb-0">
+            {/* Inside the nav offset, so the fixed navbar does not cover it. */}
+            <DemoBanner />
+            {children}
+          </main>
           <Footer />
           <MobileNav />
           <Toaster />

@@ -1,12 +1,14 @@
-name: Showcase → GitHub Pages
+name: Сайт → GitHub Pages
 
-# Publishes the static case showcase to the gh-pages branch.
+# Publishes the site to the gh-pages branch.
 #
-# The app itself is not deployed here and cannot be: the case system is
-# server-authoritative (SQLite, sessions, transactional balance, a CSPRNG
-# draw behind an API) and Pages serves static files only. What ships is the
-# part that is static — the 25 case designs, their real drop tables and the
-# opening animation. The page says so on its face.
+# What ships is a static export of the real application: the same pages,
+# the same components, the same drop tables. What it cannot ship is the
+# server behind them — Pages serves files, not processes — so the export
+# runs against an in-browser backend (lib/client/demo/) and says so in a
+# banner at the top of every page. The draw there happens in the
+# visitor's own browser and proves nothing; that is precisely the
+# difference the real product exists to provide.
 #
 # This pushes a branch rather than using actions/deploy-pages on purpose.
 # Turning Pages on for a repository is an admin-level setting, and the
@@ -21,13 +23,17 @@ on:
       - main
       - claude/zevora-gaming-platform-bbpz45
     paths:
-      - "docs/**"
-      - "public/cases/**"
-      - "public/skins/**"
-      - "lib/server/cases.json"
-      - "scripts/build-showcase.mjs"
-      - "scripts/build-case-art.mjs"
-      - "scripts/case-catalogue.mjs"
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "hooks/**"
+      - "data/**"
+      - "public/**"
+      - "scripts/build-static.mjs"
+      - "scripts/build-demo-data.mjs"
+      - "next.config.mjs"
+      - "tailwind.config.ts"
+      - "package-lock.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -51,23 +57,32 @@ jobs:
 
       - run: npm ci
 
-      # Rebuild from source so the published page can never drift from the
-      # catalogue that is committed.
-      - name: Rebuild case art and showcase
+      # Rebuilt from source so the published site can never drift from the
+      # catalogue that is committed. The demo snapshot is taken from the
+      # real server's own API, which is why it needs a server build first.
+      - name: Rebuild case art and drop tables
         run: |
           npm run build:cases
           npm run build:cases:data
-          npm run build:showcase
+
+      - name: Snapshot the catalogue for the demo backend
+        run: |
+          npx next build
+          npm run build:demo-data
+
+      - name: Build the static site
+        run: npm run build:static
+        env:
+          ZEVORA_BASE_PATH: /${{ github.event.repository.name }}
 
       - name: Push docs/ to gh-pages
         run: |
-          touch docs/.nojekyll
           cd docs
           git init -q -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -q -m "Showcase build from ${GITHUB_SHA::7}"
+          git commit -q -m "Site build from ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}" gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

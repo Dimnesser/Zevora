@@ -19,7 +19,9 @@
     "import:skins:cdn": "node scripts/import-skins.mjs --no-download --force",
     "skins:snapshot": "node scripts/build-skin-snapshot.mjs",
     "verify:images": "node scripts/verify-images.mjs",
-    "verify:browser": "node scripts/check-browser-images.mjs"
+    "verify:browser": "node scripts/check-browser-images.mjs",
+    "build:static": "node scripts/build-static.mjs",
+    "build:demo-data": "node scripts/build-demo-data.mjs"
   },
   "dependencies": {
     "@types/better-sqlite3": "^9.6.0",

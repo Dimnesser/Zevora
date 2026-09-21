@@ -100,7 +100,13 @@ export function Hero() {
           <span className="rounded-xs bg-zev-500/20 px-2 py-1 font-mono text-label text-zev-200">
             CS2
           </span>
-          <span className="meta text-slate-400">Серверный розыгрыш · реальные скины</span>
+          <span className="meta text-slate-400">
+            {/* The static demo draws in the browser; saying otherwise here
+                would contradict the banner two lines above it. */}
+            {process.env.NEXT_PUBLIC_ZEVORA_STATIC === "1"
+              ? "Витрина интерфейса · реальные скины"
+              : "Серверный розыгрыш · реальные скины"}
+          </span>
         </motion.div>
 
         {/* ── headline over the scene ── */}

@@ -14,6 +14,9 @@ import { Tabs } from "@/components/ui/Tabs";
 import { toast } from "@/lib/store/useToast";
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+/** The published static build has no server behind the form. */
+const STATIC_DEMO = process.env.NEXT_PUBLIC_ZEVORA_STATIC === "1";
+
 const MIN_PASSWORD = 6;
 
 /** Demo accounts created by the seeder, shown so the app is usable at once. */
@@ -143,32 +146,43 @@ export function AuthForm() {
             </Button>
           </div>
 
-          <div className="mt-6 border-t border-white/[0.07] pt-5">
-            <p className="mb-3 text-[12px] font-medium uppercase tracking-wider text-slate-500">
-              Демо-аккаунты
-            </p>
-            <div className="space-y-2">
-              {DEMO.map((account) => (
-                <button
-                  key={account.username}
-                  onClick={() => void useDemo(account)}
-                  disabled={busy}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-left transition hover:border-white/20 hover:bg-white/[0.07] disabled:opacity-50"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-mono text-[13px] font-semibold text-white">
-                      {account.username}
-                    </span>
-                    <span className="block truncate text-[11.5px] text-slate-500">
-                      {account.note}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-mono text-[11.5px] text-slate-600">
-                    {account.password}
-                  </span>
-                </button>
-              ))}
-            </div>
+          <div className="mt-6 border-t border-line-soft pt-5">
+            {STATIC_DEMO ? (
+              // The published demo has no user table: the account lives in
+              // this browser, so naming the seeded ones would be a lie.
+              <p className="text-[12px] leading-relaxed text-slate-500">
+                <span className="meta mb-1.5 block">Витрина на GitHub Pages</span>
+                Сервера здесь нет — аккаунт, баланс и инвентарь хранятся в этом
+                браузере. Подойдёт любой ник и пароль от {MIN_PASSWORD} символов,
+                на старте начисляется демо-баланс.
+              </p>
+            ) : (
+              <>
+                <p className="meta mb-3">Демо-аккаунты</p>
+                <div className="space-y-2">
+                  {DEMO.map((account) => (
+                    <button
+                      key={account.username}
+                      onClick={() => void useDemo(account)}
+                      disabled={busy}
+                      className="flex w-full items-center justify-between gap-3 rounded-sm border border-line-soft bg-white/[0.025] px-3.5 py-2.5 text-left transition-colors hover:border-line hover:bg-white/[0.05] disabled:opacity-50"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-mono text-[13px] font-semibold text-white">
+                          {account.username}
+                        </span>
+                        <span className="block truncate text-[11.5px] text-slate-500">
+                          {account.note}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-mono text-[11.5px] text-slate-600">
+                        {account.password}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </Card>
 

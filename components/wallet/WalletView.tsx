@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { LogIn } from "lucide-react";
@@ -18,8 +18,21 @@ import { formatMinor } from "@/lib/format";
 
 type Tab = "deposit" | "withdraw" | "history";
 
-export function WalletView({ initialTab = "deposit" }: { initialTab?: Tab }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+/**
+ * The opening tab comes from the query string, read on the client rather
+ * than from `searchParams`: the static build prerenders one wallet page
+ * for every visitor, so the server cannot know which tab was asked for.
+ */
+function tabFromLocation(): Tab {
+  if (typeof window === "undefined") return "deposit";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return tab === "withdraw" || tab === "history" ? tab : "deposit";
+}
+
+export function WalletView() {
+  const [tab, setTab] = useState<Tab>("deposit");
+  // After hydration, so the server and the first client render agree.
+  useEffect(() => setTab(tabFromLocation()), []);
   const { user, ready } = useSession();
 
   const { data: inv } = useResource(
