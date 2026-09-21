@@ -16,7 +16,6 @@ import {
 import { api, type MyStats } from "@/lib/client/api";
 import { useResource } from "@/hooks/useResource";
 import { useSession } from "@/lib/client/session";
-import { Avatar } from "@/components/art/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Progress } from "@/components/ui/Progress";
@@ -24,13 +23,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ItemCard } from "@/components/items/ItemCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TransactionList } from "@/components/wallet/TransactionList";
-import { PartnerCrest } from "@/components/partners/PartnerBadge";
 import { PartnerSummary } from "@/components/profile/PartnerSummary";
-import { TIERS } from "@/data/partners";
-import { formatDate, formatMinor, formatPercent } from "@/lib/format";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
+import { formatMinor, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const LEVEL_STEP = 500;
 
 const ICONS: Record<string, typeof Package> = {
   package: Package,
@@ -75,7 +71,16 @@ export function ProfileView() {
   );
 
   if (!ready) {
-    return <Skeleton className="h-[320px] w-full rounded-xl" />;
+    return (
+      <div className="space-y-5">
+        <Skeleton className="h-[300px] w-full rounded-lg" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-[74px] rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -94,11 +99,7 @@ export function ProfileView() {
   }
 
   const stats = statsData?.stats;
-  const tier = user.partner?.tier as keyof typeof TIERS | undefined;
-  const tierColors = tier ? TIERS[tier].colors : null;
   const owned = (inv?.items ?? []).filter((i) => i.status === "owned");
-  const xpInLevel = user.xp % LEVEL_STEP;
-  const level = Math.floor(user.xp / LEVEL_STEP) + 1;
   const winRate = stats && stats.upgrades > 0 ? stats.upgrades_won / stats.upgrades : 0;
 
   const tiles = [
@@ -110,88 +111,19 @@ export function ProfileView() {
 
   return (
     <div className="space-y-5">
-      <Card
-        strong
-        className="relative overflow-hidden p-5 sm:p-7"
-        style={
-          tierColors
-            ? {
-                borderColor: `${tierColors[0]}44`,
-                background: `linear-gradient(120deg, ${tierColors[0]}12, ${tierColors[1]}08), rgba(13,16,32,.72)`,
-              }
-            : undefined
-        }
-      >
-        {tierColors && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full opacity-25 blur-[80px]"
-            style={{ background: tierColors[0] }}
-          />
-        )}
-
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-4">
-            <Avatar seed={user.avatar_seed} size={84} ring={tierColors?.[0]} />
-            <div className="min-w-0 sm:hidden">
-              <h1 className="truncate font-display text-2xl font-bold text-white">
-                {user.username}
-              </h1>
-              <p className="text-[12.5px] text-slate-400">Уровень {level}</p>
-            </div>
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <h1 className="hidden truncate font-display text-[30px] font-bold text-white sm:block">
-              {user.username}
-            </h1>
-            <p className="mt-1 text-[13px] text-slate-400">
-              В Zevora с {formatDate(user.created_at)}
-              {user.role === "owner" && " · владелец платформы"}
-            </p>
-
-            {tier && (
-              <div className="mt-3">
-                <PartnerCrest tier={tier} />
-              </div>
-            )}
-
-            <div className="mt-4 max-w-sm">
-              <div className="mb-1.5 flex items-center justify-between text-[12px]">
-                <span className="text-slate-400">Уровень {level}</span>
-                <span className="tabular-nums text-slate-500">
-                  {xpInLevel} / {LEVEL_STEP} XP
-                </span>
-              </div>
-              <Progress value={xpInLevel / LEVEL_STEP} color={tierColors?.[0] ?? "#6E71FF"} />
-            </div>
-          </div>
-
-          <div className="grid shrink-0 grid-cols-2 gap-3 sm:w-[260px]">
-            <MiniStat label="Баланс" value={formatMinor(user.balance_minor)} />
-            <MiniStat
-              label="Инвентарь"
-              value={formatMinor(stats?.inventory_value_minor ?? 0)}
-              accent="#2FD98A"
-            />
-            <Link href="/wallet" className="col-span-2">
-              <Button fullWidth>Пополнить баланс</Button>
-            </Link>
-          </div>
-        </div>
-      </Card>
+      <ProfileHeader user={user} stats={stats} />
 
       {user.partner && <PartnerSummary partner={user.partner} username={user.username} />}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (
-          <Card key={t.label} className="flex items-center gap-3 p-4">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-slate-300">
+          <Card key={t.label} className="ticks flex items-center gap-3 p-4 text-white/15">
+            <span className="flex h-10 w-10 items-center justify-center rounded-sm border border-line-soft bg-white/[0.04] text-slate-300">
               <t.icon size={17} />
             </span>
-            <div>
-              <p className="text-[11.5px] uppercase tracking-wider text-slate-500">{t.label}</p>
-              <p className="text-[19px] font-bold tabular-nums text-white">{t.value}</p>
+            <div className="min-w-0">
+              <p className="meta">{t.label}</p>
+              <p className="font-display text-[20px] font-bold tnum text-white">{t.value}</p>
             </div>
           </Card>
         ))}
@@ -199,7 +131,7 @@ export function ProfileView() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <Card className="p-5">
-          <h2 className="mb-4 text-[15px] font-semibold text-white">Достижения</h2>
+          <SectionTitle>Достижения</SectionTitle>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {ACHIEVEMENTS.map((a) => {
               const current = stats ? a.read(stats, user.bonuses.daily_streak) : 0;
@@ -212,17 +144,19 @@ export function ProfileView() {
                 <div
                   key={a.id}
                   className={cn(
-                    "rounded-lg border p-3.5 transition",
+                    "rounded-sm border p-3.5 transition-colors duration-300",
                     done
-                      ? "border-gold-400/40 bg-gold-400/[0.08]"
-                      : "border-white/[0.07] bg-white/[0.02]",
+                      ? "border-gold-400/35 bg-gold-400/[0.07]"
+                      : "border-line-soft bg-white/[0.02] hover:border-line",
                   )}
                 >
                   <div className="flex items-start gap-3">
                     <span
                       className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                        done ? "bg-gold-400/20 text-gold-300" : "bg-white/[0.06] text-slate-500",
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xs border",
+                        done
+                          ? "border-gold-400/30 bg-gold-400/15 text-gold-300"
+                          : "border-line-soft bg-white/[0.04] text-slate-500",
                       )}
                     >
                       {done ? <Check size={16} /> : <Icon size={15} />}
@@ -243,7 +177,7 @@ export function ProfileView() {
                   </div>
                   <div className="mt-3">
                     <Progress value={progress} height={4} color={done ? "#F5B841" : "#6E71FF"} />
-                    <p className="mt-1.5 text-right text-[10.5px] tabular-nums text-slate-500">
+                    <p className="meta mt-1.5 text-right tnum">
                       {fmt(Math.min(current, a.goal))} / {fmt(a.goal)}
                     </p>
                   </div>
@@ -255,7 +189,7 @@ export function ProfileView() {
 
         <div className="space-y-5">
           <Card className="p-5">
-            <h2 className="mb-4 text-[15px] font-semibold text-white">Статистика</h2>
+            <SectionTitle>Статистика</SectionTitle>
             <div className="flex items-center gap-5">
               <div className="relative h-24 w-24 shrink-0">
                 <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
@@ -272,7 +206,7 @@ export function ProfileView() {
                     style={{ transition: "stroke-dasharray .6s ease" }}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[15px] font-bold tabular-nums text-white">
+                <span className="absolute inset-0 flex items-center justify-center font-display text-[16px] font-bold tnum text-white">
                   {formatPercent(winRate, 0)}
                 </span>
               </div>
@@ -287,7 +221,7 @@ export function ProfileView() {
               </dl>
             </div>
             {stats?.best_drop && (
-              <p className="mt-4 border-t border-white/[0.06] pt-3 text-[12px] text-slate-500">
+              <p className="mt-4 border-t border-line-soft pt-3 text-[12px] text-slate-500">
                 Лучший предмет:{" "}
                 <span className="font-semibold text-white">{stats.best_drop.market_name}</span>
               </p>
@@ -296,8 +230,8 @@ export function ProfileView() {
 
           <Card className="p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-white">История действий</h2>
-              <Link href="/history" className="text-[12px] text-zev-300 transition hover:text-white">
+              <SectionTitle rule={false} className="mb-0">История действий</SectionTitle>
+              <Link href="/history" className="meta text-zev-300 transition-colors hover:text-white">
                 Все открытия
               </Link>
             </div>
@@ -335,25 +269,35 @@ export function ProfileView() {
   );
 }
 
-function MiniStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function StatRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5">
-      <p className="text-[10.5px] uppercase tracking-wider text-slate-500">{label}</p>
-      <p
-        className="mt-0.5 truncate text-[15px] font-bold tabular-nums"
-        style={{ color: accent ?? "#fff" }}
-      >
-        {value}
-      </p>
+    <div className="flex items-center justify-between">
+      <dt className="meta text-slate-500">{label}</dt>
+      <dd className="text-[13px] font-semibold tnum text-white">{value}</dd>
     </div>
   );
 }
 
-function StatRow({ label, value }: { label: string; value: string }) {
+/** One heading style for every panel on the profile. */
+function SectionTitle({
+  children,
+  className,
+  /** The trailing hairline; off when the heading shares a row with a link. */
+  rule = true,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  rule?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between">
-      <dt className="text-[12.5px] text-slate-400">{label}</dt>
-      <dd className="text-[13px] font-semibold tabular-nums text-white">{value}</dd>
-    </div>
+    <h2
+      className={cn(
+        "mb-4 flex items-center gap-2.5 font-display text-[15px] font-semibold text-white",
+        className,
+      )}
+    >
+      {children}
+      {rule && <span aria-hidden className="h-px flex-1 bg-line-soft" />}
+    </h2>
   );
 }

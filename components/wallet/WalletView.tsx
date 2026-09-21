@@ -76,20 +76,20 @@ export function WalletView({ initialTab = "deposit" }: { initialTab?: Tab }) {
 
       <div className="space-y-4">
         <Card strong accent="#6E71FF" className="p-5">
-          <p className="text-[11.5px] uppercase tracking-[0.16em] text-slate-500">Баланс</p>
-          <p className="mt-1.5 font-display text-[34px] font-bold leading-none tabular-nums text-white">
+          <p className="meta">Баланс</p>
+          <p className="mt-1.5 font-display text-[34px] font-bold leading-none tnum text-white">
             {formatMinor(balance)}
           </p>
-          <div className="mt-5 space-y-2.5 border-t border-white/[0.07] pt-4">
+          <div className="mt-5 space-y-2.5 border-t border-line-soft pt-4">
             <div className="flex items-center justify-between">
-              <span className="text-[13px] text-slate-400">Предметов в инвентаре</span>
-              <span className="text-[13.5px] font-semibold tabular-nums text-white">
+              <span className="meta text-slate-500">В инвентаре</span>
+              <span className="text-[13.5px] font-semibold tnum text-white">
                 {formatMinor(inventoryValue)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[13px] text-slate-400">Итого активов</span>
-              <span className="text-[13.5px] font-semibold tabular-nums text-success">
+              <span className="meta text-slate-500">Итого активов</span>
+              <span className="text-[13.5px] font-semibold tnum text-success">
                 {formatMinor(balance + inventoryValue)}
               </span>
             </div>
@@ -97,7 +97,7 @@ export function WalletView({ initialTab = "deposit" }: { initialTab?: Tab }) {
         </Card>
 
         <Card className="p-5">
-          <h3 className="text-[14px] font-semibold text-white">Как работает вывод</h3>
+          <h3 className="font-display text-[14px] font-semibold text-white">Как работает вывод</h3>
           <ol className="mt-3 space-y-3">
             {[
               "Укажите ссылку на обмен Steam из настроек приватности.",
@@ -106,7 +106,7 @@ export function WalletView({ initialTab = "deposit" }: { initialTab?: Tab }) {
               "Примите обмен в Steam в течение 30 минут.",
             ].map((step, i) => (
               <li key={i} className="flex gap-3">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/[0.07] text-[10.5px] font-bold text-slate-300">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-xs border border-line-soft bg-white/[0.04] font-mono text-[10.5px] font-bold text-slate-300">
                   {i + 1}
                 </span>
                 <span className="text-[12.5px] leading-relaxed text-slate-400">{step}</span>

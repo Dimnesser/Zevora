@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
+import { RouteProgress } from "@/components/layout/RouteProgress";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/Toaster";
@@ -64,6 +65,7 @@ export default function RootLayout({
     <html lang="ru" className={`${inter.variable} ${grotesk.variable} ${mono.variable}`}>
       <body className="min-h-screen">
         <SessionProvider>
+          <RouteProgress />
           <Navbar />
           {/* Top padding clears the fixed navbar; bottom clears the mobile tabs. */}
           <main className="pb-28 pt-[var(--nav-h)] lg:pb-0">{children}</main>
