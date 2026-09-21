@@ -7,6 +7,7 @@ import { useResource } from "@/hooks/useResource";
 import { useSession } from "@/lib/client/session";
 import { CaseCard } from "@/components/cases/CaseCard";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { Input } from "@/components/ui/Input";
 import { CaseCardSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -75,25 +76,19 @@ export function CasesBrowser() {
             aria-label="Поиск кейса"
           />
 
-          <div className="relative">
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as Sort)}
-              aria-label="Сортировка"
-              className={cn(
-                "h-11 cursor-pointer appearance-none rounded-xl border border-white/[0.09] bg-white/[0.04]",
-                "pl-10 pr-4 text-[13px] text-white outline-none transition focus:border-zev-400/70",
-              )}
-            >
-              <option value="default" className="bg-slab">По умолчанию</option>
-              <option value="price-asc" className="bg-slab">Сначала дешёвые</option>
-              <option value="price-desc" className="bg-slab">Сначала дорогие</option>
-            </select>
-            <SlidersHorizontal
-              size={15}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-            />
-          </div>
+          <Dropdown<Sort>
+            value={sort}
+            onChange={setSort}
+            label="Сортировка"
+            align="end"
+            className="w-44"
+            iconLeft={<SlidersHorizontal size={15} />}
+            options={[
+              { value: "default", label: "По умолчанию" },
+              { value: "price-asc", label: "Сначала дешёвые" },
+              { value: "price-desc", label: "Сначала дорогие" },
+            ]}
+          />
         </div>
       </div>
 

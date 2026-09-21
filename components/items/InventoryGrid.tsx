@@ -2,7 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Backpack, Coins, LogIn, PackageOpen, Send, TrendingUp } from "lucide-react";
+import {
+  ArrowDownWideNarrow,
+  Backpack,
+  Coins,
+  LogIn,
+  PackageOpen,
+  Send,
+  TrendingUp,
+} from "lucide-react";
 import Link from "next/link";
 import { ApiRequestError, api, type InventoryItem } from "@/lib/client/api";
 import { useResource } from "@/hooks/useResource";
@@ -10,6 +18,7 @@ import { useSession } from "@/lib/client/session";
 import { ItemCard } from "@/components/items/ItemCard";
 import { ItemCardSkeleton } from "@/components/ui/Skeleton";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { ITEM_KIND_LABEL, itemKind, type ItemKind } from "@/lib/client/display";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -163,17 +172,20 @@ export function InventoryGrid() {
 
       <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center">
         <Tabs items={kindTabs} value={kind} onChange={setKind} className="lg:flex-1" />
-        <select
+        <Dropdown<Sort>
           value={sort}
-          onChange={(e) => setSort(e.target.value as Sort)}
-          aria-label="Сортировка"
-          className="h-10 cursor-pointer appearance-none rounded-md border border-line bg-white/[0.04] px-4 text-[13px] text-slate-200 shadow-lip outline-none transition hover:border-white/15 focus:border-ice-500/70"
-        >
-          <option value="recent" className="bg-slab">Сначала новые</option>
-          <option value="price-desc" className="bg-slab">Сначала дорогие</option>
-          <option value="price-asc" className="bg-slab">Сначала дешёвые</option>
-          <option value="rarity" className="bg-slab">По редкости</option>
-        </select>
+          onChange={setSort}
+          label="Сортировка"
+          align="end"
+          className="lg:w-52"
+          iconLeft={<ArrowDownWideNarrow size={15} />}
+          options={[
+            { value: "recent", label: "Сначала новые" },
+            { value: "price-desc", label: "Сначала дорогие" },
+            { value: "price-asc", label: "Сначала дешёвые" },
+            { value: "rarity", label: "По редкости" },
+          ]}
+        />
       </div>
 
       <div className="mb-5">
