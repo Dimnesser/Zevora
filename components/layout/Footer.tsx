@@ -6,6 +6,7 @@ const COLUMNS = [
     title: "Платформа",
     links: [
       { href: "/cases", label: "Кейсы" },
+      { href: "/contracts", label: "Контракты" },
       { href: "/upgrade", label: "Апгрейд" },
       { href: "/shop", label: "Магазин" },
       { href: "/leaderboard", label: "Рейтинг" },

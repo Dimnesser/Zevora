@@ -45,8 +45,25 @@ function ItemCardBase({
       whileTap={onClick && !disabled ? { scale: 0.985 } : undefined}
       transition={{ type: "spring", stiffness: 400, damping: 28 }}
       onClick={disabled ? undefined : onClick}
+      // A clickable card is a control: without this it is unreachable by
+      // keyboard and invisible to a screen reader.
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick && !disabled ? 0 : undefined}
+      aria-pressed={onClick ? Boolean(selected) : undefined}
+      aria-disabled={onClick && disabled ? true : undefined}
+      onKeyDown={
+        onClick && !disabled
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       className={cn(
         "glass group relative flex flex-col overflow-hidden",
+        "focus-visible:outline-none focus-visible:shadow-focus",
         onClick && !disabled && "cursor-pointer",
         disabled && "opacity-40 saturate-50",
         className,

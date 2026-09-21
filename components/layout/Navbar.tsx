@@ -4,7 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Backpack, Crown, Gift, History, Package, ShoppingBag, TrendingUp } from "lucide-react";
+import {
+  Backpack,
+  Crown,
+  FileSignature,
+  Gift,
+  History,
+  Package,
+  ShoppingBag,
+  TrendingUp,
+} from "lucide-react";
 import { ZevoraLogo } from "@/components/art/ZevoraLogo";
 import { BalanceWidget } from "@/components/layout/BalanceWidget";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -12,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 export const NAV_LINKS = [
   { href: "/cases", label: "Кейсы", icon: Package },
+  { href: "/contracts", label: "Контракты", icon: FileSignature },
   { href: "/upgrade", label: "Апгрейд", icon: TrendingUp },
   { href: "/inventory", label: "Инвентарь", icon: Backpack },
   { href: "/history", label: "История", icon: History },

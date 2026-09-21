@@ -324,6 +324,15 @@ export const api = {
       body: JSON.stringify({ item_ids: itemIds, target_skin_id: targetSkinId }),
     }),
 
+  // contracts (trade-up)
+  contracts: () =>
+    request<{ size: number; groups: ContractGroup[] }>("/api/contracts"),
+  runContract: (itemIds: number[]) =>
+    request<ContractResult>("/api/contracts", {
+      method: "POST",
+      body: JSON.stringify({ item_ids: itemIds }),
+    }),
+
   leaderboard: (period = "week") =>
     request<{
       period: string;
@@ -422,6 +431,32 @@ export interface ActivityPoint {
   opens: number;
   spent_minor: number;
   won_minor: number;
+}
+
+export interface ContractGroup {
+  rarity: { slug: string; name: string; color: string; sort_order: number };
+  next: { slug: string; name: string; color: string };
+  owned: number;
+  outcomes: number;
+}
+
+export interface ContractResult {
+  contract_id: number;
+  consumed: number;
+  stake_minor: number;
+  average_float: number;
+  rarity: { slug: string; name: string };
+  won: {
+    inventory_id: number;
+    skin_id: number;
+    market_name: string;
+    price_minor: number;
+    wear: string;
+    float_value: number;
+    stattrak: boolean;
+  };
+  pool_size: number;
+  audit: { roll: number; total_weight: number };
 }
 
 export interface MyStats {

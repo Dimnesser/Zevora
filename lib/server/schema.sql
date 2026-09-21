@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   wear           TEXT    NOT NULL,
   float_value    REAL    NOT NULL CHECK (float_value >= 0 AND float_value <= 1),
   stattrak       INTEGER NOT NULL DEFAULT 0,
-  source         TEXT    NOT NULL CHECK (source IN ('case','upgrade','shop','bonus','starter')),
+  source         TEXT    NOT NULL CHECK (source IN ('case','upgrade','shop','bonus','starter','contract')),
   source_case_id INTEGER REFERENCES cases(id) ON DELETE SET NULL,
   status         TEXT    NOT NULL DEFAULT 'owned'
                    CHECK (status IN ('owned','withdrawing','withdrawn','sold','consumed')),
@@ -204,6 +204,41 @@ CREATE TABLE IF NOT EXISTS case_openings (
 CREATE INDEX IF NOT EXISTS idx_openings_user ON case_openings(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_openings_case ON case_openings(case_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_openings_recent ON case_openings(created_at DESC);
+
+-- ─────────────── trade-up contracts ───────────────
+
+-- One contract: N items of one rarity consumed, one of the next produced.
+-- `roll` and `total_weight` are the same audit trail case openings keep,
+-- so a contract can be re-verified long after the items are gone.
+CREATE TABLE IF NOT EXISTS contracts (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  from_rarity_id      INTEGER NOT NULL REFERENCES rarities(id) ON DELETE RESTRICT,
+  to_rarity_id        INTEGER NOT NULL REFERENCES rarities(id) ON DELETE RESTRICT,
+  input_count         INTEGER NOT NULL CHECK (input_count > 0),
+  stake_minor         INTEGER NOT NULL CHECK (stake_minor >= 0),
+  -- Mean float of the inputs: what decided the output's wear.
+  average_float       REAL    NOT NULL CHECK (average_float >= 0 AND average_float <= 1),
+  result_skin_id      INTEGER NOT NULL REFERENCES skins(id) ON DELETE RESTRICT,
+  result_inventory_id INTEGER REFERENCES inventory_items(id) ON DELETE SET NULL,
+  value_minor         INTEGER NOT NULL CHECK (value_minor >= 0),
+  roll                INTEGER NOT NULL,
+  total_weight        INTEGER NOT NULL CHECK (total_weight > 0),
+  created_at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_contracts_user ON contracts(user_id, created_at DESC);
+
+-- The inputs are copied rather than referenced: the rows they came from
+-- are marked 'consumed' and may be pruned, but a contract must stay
+-- readable forever.
+CREATE TABLE IF NOT EXISTS contract_inputs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  skin_id     INTEGER NOT NULL REFERENCES skins(id) ON DELETE RESTRICT,
+  price_minor INTEGER NOT NULL CHECK (price_minor >= 0),
+  float_value REAL    NOT NULL CHECK (float_value >= 0 AND float_value <= 1)
+);
+CREATE INDEX IF NOT EXISTS idx_contract_inputs ON contract_inputs(contract_id);
 
 CREATE TABLE IF NOT EXISTS transactions (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,

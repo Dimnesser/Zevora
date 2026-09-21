@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Backpack, Crown, Home, Package, TrendingUp } from "lucide-react";
+import { Backpack, FileSignature, Home, Package, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,7 +15,7 @@ const TABS = [
   { href: "/upgrade", label: "Апгрейд", icon: TrendingUp },
   { href: "/cases", label: "Кейсы", icon: Package, primary: true },
   { href: "/inventory", label: "Инвентарь", icon: Backpack },
-  { href: "/partners", label: "Partners", icon: Crown },
+  { href: "/contracts", label: "Контракты", icon: FileSignature },
 ];
 
 export function MobileNav() {

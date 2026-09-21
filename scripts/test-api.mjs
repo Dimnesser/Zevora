@@ -261,6 +261,98 @@ async function main() {
   r = await alice("/api/inventory/sell", { method: "POST", body: { ids: [-1] } });
   check("Отрицательный id отклонён", r.status === 422, `got ${r.status}`);
 
+  // ───────────── contracts ─────────────
+  section("Контракты");
+
+  // A contract needs ten items of one rarity, so this account opens the
+  // cheapest case until it has them.
+  const carl = makeClient();
+  const carlName = `carl_${rnd()}`;
+  await carl("/api/auth/register", {
+    method: "POST",
+    body: { username: carlName, password: "secret123" },
+  });
+  await carl("/api/wallet/deposit", { method: "POST", body: { amount: 300000, method: "card" } });
+  for (let i = 0; i < 60; i++) {
+    await carl(`/api/cases/${cheap.slug}/open`, {
+      method: "POST",
+      headers: { "idempotency-key": `carl_${i}_${rnd()}` },
+    });
+  }
+
+  const meta = await carl("/api/contracts");
+  check("Список контрактов доступен", meta.status === 200 && Array.isArray(meta.json.groups),
+        `got ${meta.status}`);
+  check("Размер контракта — 10", meta.json?.size === 10, `got ${meta.json?.size}`);
+  check("Топовая редкость не предлагается к апгрейду",
+        (meta.json?.groups ?? []).every((g) => g.next && g.next.slug !== g.rarity.slug));
+
+  const carlInv = (await carl("/api/inventory")).json.items.filter((i) => i.status === "owned");
+  const tradable = new Set((meta.json?.groups ?? []).map((g) => g.rarity.slug));
+  const byRarity = new Map();
+  for (const item of carlInv) {
+    if (!tradable.has(item.rarity.slug)) continue;
+    if (!byRarity.has(item.rarity.slug)) byRarity.set(item.rarity.slug, []);
+    byRarity.get(item.rarity.slug).push(item);
+  }
+  const ready = [...byRarity.values()].find((list) => list.length >= 10);
+  check("Набралось 10 предметов одной редкости для контракта", Boolean(ready),
+        `rarities=${[...byRarity.entries()].map(([k, v]) => `${k}:${v.length}`).join(",")}`);
+
+  if (ready) {
+    const ids = ready.slice(0, 10).map((i) => i.id);
+    const avgFloat = ready.slice(0, 10).reduce((s, i) => s + i.float_value, 0) / 10;
+
+    r = await carl("/api/contracts", { method: "POST", body: { item_ids: ids.slice(0, 9) } });
+    check("Контракт из 9 предметов отклонён", r.status === 422, `got ${r.status}`);
+
+    const mixed = carlInv.find((i) => !ids.includes(i.id) && i.rarity.slug !== ready[0].rarity.slug);
+    if (mixed) {
+      r = await carl("/api/contracts", {
+        method: "POST",
+        body: { item_ids: [...ids.slice(0, 9), mixed.id] },
+      });
+      check("Смешанные редкости отклонены", r.status === 422, `got ${r.status}`);
+    }
+
+    r = await carl("/api/contracts", {
+      method: "POST",
+      body: { item_ids: [...ids.slice(0, 9), ids[0]] },
+    });
+    check("Один предмет дважды отклонён", r.status === 422, `got ${r.status}`);
+
+    r = await bob("/api/contracts", { method: "POST", body: { item_ids: ids } });
+    check("Контракт из чужих предметов отклонён", r.status === 409, `got ${r.status}`);
+
+    const run = await carl("/api/contracts", { method: "POST", body: { item_ids: ids } });
+    check("Контракт исполняется", run.status === 200, `got ${run.status} ${JSON.stringify(run.json)}`);
+
+    if (run.status === 200) {
+      const out = run.json;
+      check("Получен ровно один предмет", Boolean(out.won?.inventory_id));
+      check("Израсходовано 10 предметов", out.consumed === 10, `got ${out.consumed}`);
+      check("Средний float совпадает с вложенным",
+            Math.abs(out.average_float - avgFloat) < 0.0002,
+            `${out.average_float} vs ${avgFloat}`);
+      check("Float результата в допустимых границах",
+            out.won.float_value >= 0 && out.won.float_value <= 1, `${out.won.float_value}`);
+      check("Сохранён аудит розыгрыша",
+            Number.isInteger(out.audit?.roll) && out.audit.roll < out.audit.total_weight);
+
+      const after = (await carl("/api/inventory")).json.items;
+      const survivors = after.filter((i) => ids.includes(i.id) && i.status === "owned");
+      check("Вложенные предметы списаны", survivors.length === 0, `left=${survivors.length}`);
+      const wonRow = after.find((i) => i.id === out.won.inventory_id);
+      check("Результат лежит в инвентаре", Boolean(wonRow));
+      check("Источник результата — контракт", wonRow?.source === "contract", `${wonRow?.source}`);
+      check("Редкость результата выше вложенной",
+            wonRow && wonRow.rarity.slug !== out.rarity.slug, `${wonRow?.rarity?.slug}`);
+
+      r = await carl("/api/contracts", { method: "POST", body: { item_ids: ids } });
+      check("Повторный контракт с теми же предметами отклонён", r.status === 409, `got ${r.status}`);
+    }
+  }
+
   // ───────────── history ─────────────
   section("История");
 
