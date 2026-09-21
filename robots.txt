@@ -1,0 +1,9 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /profile
+Disallow: /inventory
+Disallow: /wallet
+Disallow: /history
+
