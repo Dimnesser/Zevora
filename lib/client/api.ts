@@ -205,6 +205,23 @@ export interface OpenResult {
   audit: { roll: number; total_weight: number };
 }
 
+export type OrderStatus = "pending" | "paid" | "failed" | "expired" | "cancelled";
+
+export interface PaymentOrder {
+  id: string;
+  provider: string;
+  method: string;
+  amount_minor: number;
+  bonus_minor: number;
+  credited_minor: number;
+  status: OrderStatus;
+  failure_reason: string | null;
+  created_at: number;
+  expires_at: number;
+  /** True when no real money is involved — the UI must say so. */
+  simulated: boolean;
+}
+
 export interface Transaction {
   id: number;
   kind: string;
@@ -283,10 +300,18 @@ export const api = {
   live: (limit = 20) => request<{ drops: Opening[] }>(`/api/live?limit=${limit}`),
 
   // wallet
+  /** Opens a top-up order. The balance moves only once it is paid. */
   deposit: (amount: number, method: string) =>
-    request<{ credited_minor: number; bonus_minor: number; balance_minor: number }>(
+    request<{ order: PaymentOrder; pay_url: string; simulated: boolean }>(
       "/api/wallet/deposit",
       { method: "POST", body: JSON.stringify({ amount, method }) },
+    ),
+  order: (id: string) => request<{ order: PaymentOrder }>(`/api/wallet/orders/${id}`),
+  /** Test provider only: stands in for the customer paying or cancelling. */
+  simulatePayment: (id: string, outcome: "paid" | "failed") =>
+    request<{ order: PaymentOrder; credited: boolean; balance_minor: number | null }>(
+      `/api/wallet/orders/${id}/simulate`,
+      { method: "POST", body: JSON.stringify({ outcome }) },
     ),
   transactions: (limit = 60) =>
     request<{ transactions: Transaction[] }>(`/api/transactions?limit=${limit}`),

@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   Bitcoin,
   Check,
+  Clock,
   CreditCard,
   Loader2,
   RotateCcw,
   Smartphone,
   Wallet,
 } from "lucide-react";
-import { ApiRequestError, api } from "@/lib/client/api";
+import { ApiRequestError, api, type PaymentOrder } from "@/lib/client/api";
 import { useSession } from "@/lib/client/session";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
@@ -35,12 +36,18 @@ const METHODS = [
 const MIN = 100;
 const MAX = 300_000;
 
-/** Where the panel is in the top-up: the form, the wait, or the outcome. */
+/** Where the panel is in the top-up. */
 type Phase =
   | { kind: "form" }
-  | { kind: "pending" }
-  | { kind: "done"; credited: number; bonus: number; balance: number }
+  /** The order is being opened with the provider. */
+  | { kind: "opening" }
+  /** The order exists and is waiting for the provider's confirmation. */
+  | { kind: "awaiting"; order: PaymentOrder }
+  | { kind: "done"; credited: number; bonus: number; balance: number | null }
   | { kind: "failed"; message: string };
+
+/** How often an open order is re-checked while the payment page is open. */
+const POLL_MS = 2500;
 
 /**
  * Top-up.
@@ -52,43 +59,109 @@ type Phase =
  * back to the cases on success, retry on failure.
  */
 export function DepositPanel({ onDone }: { onDone?: () => void }) {
-  const { setBalance } = useSession();
+  const { refresh } = useSession();
   const [amount, setAmount] = useState(1000);
   const [method, setMethod] = useState(METHODS[0]);
   const [phase, setPhase] = useState<Phase>({ kind: "form" });
+  const [simulating, setSimulating] = useState(false);
 
   const valid = Number.isInteger(amount) && amount >= MIN && amount <= MAX;
   const bonus = Math.round(amount * 100 * method.bonus);
   const credited = amount * 100 + bonus;
-  const busy = phase.kind === "pending";
+  const busy = phase.kind === "opening";
 
   const submit = async () => {
     if (!valid) {
       toast.error("Неверная сумма", `Минимум ${MIN} ₽, максимум ${MAX.toLocaleString("ru-RU")} ₽`);
       return;
     }
-    setPhase({ kind: "pending" });
+    setPhase({ kind: "opening" });
     try {
       const res = await api.deposit(amount, method.id);
-      setBalance(res.balance_minor);
-      setPhase({
-        kind: "done",
-        credited: res.credited_minor,
-        bonus: res.bonus_minor,
-        balance: res.balance_minor,
-      });
-      toast.success(
-        "Баланс пополнен",
-        res.bonus_minor > 0
-          ? `${formatMinor(res.credited_minor - res.bonus_minor)} + бонус ${formatMinor(res.bonus_minor)}`
-          : formatMinor(res.credited_minor),
-      );
-      onDone?.();
+      setPhase({ kind: "awaiting", order: res.order });
     } catch (err) {
-      const message =
-        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз";
+      const message = err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз";
       setPhase({ kind: "failed", message });
-      toast.error("Не удалось пополнить", message);
+      toast.error("Не удалось начать оплату", message);
+    }
+  };
+
+  /**
+   * An order is settled by the provider, not by this panel, so the only
+   * thing to do while one is open is ask what happened to it.
+   */
+  useEffect(() => {
+    if (phase.kind !== "awaiting") return;
+    let live = true;
+
+    const tick = async () => {
+      try {
+        const { order } = await api.order(phase.order.id);
+        if (!live) return;
+        if (order.status === "paid") {
+          setPhase({
+            kind: "done",
+            credited: order.credited_minor,
+            bonus: order.bonus_minor,
+            balance: null,
+          });
+          await refresh();
+          toast.success(
+            "Баланс пополнен",
+            order.bonus_minor > 0
+              ? `${formatMinor(order.credited_minor - order.bonus_minor)} + бонус ${formatMinor(order.bonus_minor)}`
+              : formatMinor(order.credited_minor),
+          );
+          onDone?.();
+        } else if (order.status !== "pending") {
+          setPhase({
+            kind: "failed",
+            message: order.failure_reason ?? "Платёж не был завершён",
+          });
+        } else {
+          setPhase({ kind: "awaiting", order });
+        }
+      } catch {
+        /* a dropped poll is not a failure; the next tick tries again */
+      }
+    };
+
+    const id = setInterval(() => void tick(), POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [phase, refresh, onDone]);
+
+  /** Test provider only: stands in for the customer on the payment page. */
+  const simulate = async (outcome: "paid" | "failed") => {
+    if (phase.kind !== "awaiting") return;
+    setSimulating(true);
+    try {
+      const res = await api.simulatePayment(phase.order.id, outcome);
+      if (res.order.status === "paid") {
+        setPhase({
+          kind: "done",
+          credited: res.order.credited_minor,
+          bonus: res.order.bonus_minor,
+          balance: res.balance_minor,
+        });
+        await refresh();
+        toast.success("Баланс пополнен", formatMinor(res.order.credited_minor));
+        onDone?.();
+      } else {
+        setPhase({
+          kind: "failed",
+          message: res.order.failure_reason ?? "Платёж отменён",
+        });
+      }
+    } catch (err) {
+      toast.error(
+        "Не удалось подтвердить оплату",
+        err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
+      );
+    } finally {
+      setSimulating(false);
     }
   };
 
@@ -103,7 +176,9 @@ export function DepositPanel({ onDone }: { onDone?: () => void }) {
           ...(phase.bonus > 0
             ? ([["из них бонус", `+${formatMinor(phase.bonus)}`]] as [string, string][])
             : []),
-          ["Баланс", formatMinor(phase.balance)],
+          ...(phase.balance !== null
+            ? ([["Баланс", formatMinor(phase.balance)]] as [string, string][])
+            : []),
         ]}
         action={
           <Button variant="accent" onClick={() => setPhase({ kind: "form" })}>
@@ -131,6 +206,18 @@ export function DepositPanel({ onDone }: { onDone?: () => void }) {
             Попробовать снова
           </Button>
         }
+      />
+    );
+  }
+
+  if (phase.kind === "awaiting") {
+    return (
+      <AwaitingPayment
+        order={phase.order}
+        method={method.name}
+        busy={simulating}
+        onSimulate={(outcome) => void simulate(outcome)}
+        onCancel={() => setPhase({ kind: "form" })}
       />
     );
   }
@@ -246,11 +333,12 @@ export function DepositPanel({ onDone }: { onDone?: () => void }) {
         onClick={() => void submit()}
         iconLeft={<Wallet size={17} />}
       >
-        Пополнить на {formatMinor(credited)}
+        Перейти к оплате · {formatMinor(credited)}
       </Button>
 
       <p className="text-center text-[11.5px] leading-relaxed text-slate-600">
-        Демонстрационный режим: реальные платежи не проводятся, баланс виртуальный.
+        Баланс пополняется только после подтверждения от платёжного провайдера.
+        Сейчас подключён тестовый провайдер — реальные деньги не списываются.
       </p>
 
       {/* ── the wait, over the form it belongs to ── */}
@@ -265,7 +353,7 @@ export function DepositPanel({ onDone }: { onDone?: () => void }) {
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-sm bg-void/72 backdrop-blur-sm"
           >
             <Loader2 size={26} className="animate-spin text-zev-300" />
-            <p className="meta text-slate-300">Проводим платёж</p>
+            <p className="meta text-slate-300">Создаём счёт</p>
             <p className="text-[12px] text-slate-500">
               {formatMinor(credited)} · {method.name}
             </p>
@@ -352,6 +440,136 @@ function Row({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+/**
+ * The order is open and nothing else can happen here until the provider
+ * reports back. The screen says exactly that, shows what is being paid
+ * for, and — with the bundled test provider — offers the two buttons its
+ * hosted page would have.
+ */
+function AwaitingPayment({
+  order,
+  method,
+  busy,
+  onSimulate,
+  onCancel,
+}: {
+  order: PaymentOrder;
+  method: string;
+  busy: boolean;
+  onSimulate: (outcome: "paid" | "failed") => void;
+  onCancel: () => void;
+}) {
+  const total = order.amount_minor + order.bonus_minor;
+  const [left, setLeft] = useState(() => order.expires_at - Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setLeft(order.expires_at - Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [order.expires_at]);
+
+  const mins = Math.max(0, Math.floor(left / 60000));
+  const secs = Math.max(0, Math.floor((left % 60000) / 1000));
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col items-center py-6 text-center"
+    >
+      <span className="relative flex h-16 w-16 items-center justify-center">
+        <motion.span
+          aria-hidden
+          className="absolute inset-0 rounded-full bg-zev-500 opacity-25 blur-xl"
+          animate={{ opacity: [0.18, 0.4, 0.18] }}
+          transition={{ duration: 1.8, repeat: Infinity }}
+        />
+        <span className="relative flex h-14 w-14 items-center justify-center rounded-full border border-zev-400/45 bg-zev-500/[0.12] text-zev-300">
+          <Clock size={24} />
+        </span>
+      </span>
+
+      <h3 className="mt-4 font-display text-[21px] font-bold text-white">
+        Ожидаем оплату
+      </h3>
+      <p className="mt-1.5 max-w-[38ch] text-[12.5px] leading-relaxed text-slate-500">
+        Баланс пополнится, когда провайдер подтвердит платёж. Счёт действует
+        ещё {mins}:{String(secs).padStart(2, "0")}.
+      </p>
+
+      <dl className="mt-5 w-full max-w-[320px] space-y-1.5 rounded-sm border border-line-soft bg-white/[0.02] px-4 py-3">
+        <Line k="Счёт" v={order.id.slice(0, 10)} mono />
+        <Line k="Способ" v={method} />
+        <Line k="Сумма" v={formatMinor(order.amount_minor)} />
+        {order.bonus_minor > 0 && (
+          <Line k="Бонус" v={`+${formatMinor(order.bonus_minor)}`} tone="#2FD98A" />
+        )}
+        <Line k="К зачислению" v={formatMinor(total)} bold />
+      </dl>
+
+      {order.simulated ? (
+        <div className="mt-5 w-full max-w-[320px]">
+          <p className="meta mb-2.5 text-gold-300">Тестовый провайдер</p>
+          <div className="flex gap-2">
+            <Button variant="accent" fullWidth loading={busy} onClick={() => onSimulate("paid")}>
+              Оплатить
+            </Button>
+            <Button variant="secondary" fullWidth disabled={busy} onClick={() => onSimulate("failed")}>
+              Отклонить
+            </Button>
+          </div>
+          <p className="mt-2.5 text-[11px] leading-relaxed text-slate-600">
+            Настоящий провайдер прислал бы подписанный вебхук; эти кнопки
+            отправляют такой же, через ту же проверку подписи.
+          </p>
+        </div>
+      ) : (
+        <p className="mt-5 max-w-[34ch] text-[12px] text-slate-500">
+          Завершите оплату на странице провайдера — страница обновится сама.
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={onCancel}
+        className="meta mt-5 text-slate-500 transition-colors hover:text-white"
+      >
+        Вернуться к сумме
+      </button>
+    </motion.div>
+  );
+}
+
+function Line({
+  k,
+  v,
+  tone,
+  bold,
+  mono,
+}: {
+  k: string;
+  v: string;
+  tone?: string;
+  bold?: boolean;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <dt className="meta text-slate-500">{k}</dt>
+      <dd
+        className={cn(
+          "tnum",
+          mono ? "font-mono text-[12px]" : "text-[13.5px] font-semibold",
+          bold && "font-display text-[15px] font-bold",
+        )}
+        style={{ color: tone ?? "#fff" }}
+      >
+        {v}
+      </dd>
     </div>
   );
 }

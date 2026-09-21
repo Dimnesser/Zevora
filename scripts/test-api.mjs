@@ -54,6 +54,23 @@ function makeClient() {
 
 const rnd = () => Math.random().toString(36).slice(2, 10);
 
+/**
+ * Funds an account the way a customer does: open an order, then have the
+ * test provider confirm it. Deposits no longer credit on their own, so
+ * every fixture that needs a balance goes through this.
+ */
+async function fund(client, amountMajor, method = "card") {
+  const open = await client("/api/wallet/deposit", {
+    method: "POST",
+    body: { amount: amountMajor, method },
+  });
+  if (open.status !== 200) return open;
+  return client(`/api/wallet/orders/${open.json.order.id}/simulate`, {
+    method: "POST",
+    body: { outcome: "paid" },
+  });
+}
+
 async function main() {
   // ───────────── auth ─────────────
   section("Авторизация");
@@ -272,7 +289,7 @@ async function main() {
     method: "POST",
     body: { username: carlName, password: "secret123" },
   });
-  await carl("/api/wallet/deposit", { method: "POST", body: { amount: 300000, method: "card" } });
+  await fund(carl, 300000);
   for (let i = 0; i < 60; i++) {
     await carl(`/api/cases/${cheap.slug}/open`, {
       method: "POST",
@@ -530,9 +547,42 @@ async function main() {
 
   const depBefore = (await carol("/api/auth/me")).json.user.balance_minor;
   r = await carol("/api/wallet/deposit", { method: "POST", body: { amount: 1000, method: "sbp" } });
-  check("Пополнение с бонусом СБП 3%", r.json?.bonus_minor === 3000, `bonus=${r.json?.bonus_minor}`);
-  check("Баланс увеличился на сумму с бонусом",
-        r.json.balance_minor === depBefore + 103000);
+  const order = r.json?.order;
+  check("Пополнение открывает счёт, а не начисляет", r.status === 200 && order?.status === "pending",
+        `status=${r.status} order=${order?.status}`);
+  check("Бонус СБП 3% посчитан на сервере", order?.bonus_minor === 3000, `bonus=${order?.bonus_minor}`);
+  check("Баланс до оплаты не изменился",
+        (await carol("/api/auth/me")).json.user.balance_minor === depBefore);
+
+  // Дюп: десять счётов подряд не должны дать ни копейки.
+  for (let i = 0; i < 10; i++) {
+    await carol("/api/wallet/deposit", { method: "POST", body: { amount: 300000, method: "card" } });
+  }
+  check("Десять неоплаченных счётов не меняют баланс",
+        (await carol("/api/auth/me")).json.user.balance_minor === depBefore,
+        `баланс ${(await carol("/api/auth/me")).json.user.balance_minor} против ${depBefore}`);
+
+  r = await carol(`/api/wallet/orders/${order.id}/simulate`, { method: "POST", body: { outcome: "paid" } });
+  check("Подтверждение провайдера зачисляет сумму с бонусом",
+        r.status === 200 && r.json?.balance_minor === depBefore + 103000,
+        `${r.json?.balance_minor} против ${depBefore + 103000}`);
+
+  const afterPaid = (await carol("/api/auth/me")).json.user.balance_minor;
+  r = await carol(`/api/wallet/orders/${order.id}/simulate`, { method: "POST", body: { outcome: "paid" } });
+  check("Повторное подтверждение того же счёта ничего не зачисляет",
+        r.json?.credited === false &&
+          (await carol("/api/auth/me")).json.user.balance_minor === afterPaid);
+
+  r = await bob(`/api/wallet/orders/${order.id}`);
+  check("Чужой счёт не виден", r.status === 404, `got ${r.status}`);
+  r = await bob(`/api/wallet/orders/${order.id}/simulate`, { method: "POST", body: { outcome: "paid" } });
+  check("Чужой счёт нельзя подтвердить", r.status === 404, `got ${r.status}`);
+
+  r = await anon("/api/payments/mock/webhook", {
+    method: "POST",
+    body: { public_id: order.id, provider_ref: "x", status: "paid", amount_minor: 100000 },
+  });
+  check("Вебхук без подписи отклонён", r.status === 403, `got ${r.status}`);
 
   r = await carol("/api/wallet/deposit", { method: "POST", body: { amount: 10, method: "card" } });
   check("Сумма ниже минимума отклонена", r.status === 422);
@@ -607,7 +657,7 @@ async function main() {
     method: "POST",
     body: { username: `flood_${rnd()}`, password: "secret123" },
   });
-  await flood("/api/wallet/deposit", { method: "POST", body: { amount: 50000, method: "card" } });
+  await fund(flood, 50000);
 
   const floodRes = await Promise.all(
     Array.from({ length: 90 }, () =>

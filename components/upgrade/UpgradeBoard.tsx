@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, LogIn, Sparkles, TrendingUp, X } from "lucide-react";
 import Link from "next/link";
@@ -59,6 +59,12 @@ export function UpgradeBoard() {
   const [rotation, setRotation] = useState(0);
   const [settled, setSettled] = useState<Settled | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * `busy` is state, so a second click in the same tick still sees false
+   * and fires a second attempt with items the first one is consuming.
+   * The ref closes that window; the state stays for rendering.
+   */
+  const inFlight = useRef(false);
 
   const { data: inventory, reload } = useResource(
     () => (user ? api.inventory({ sort: "price-desc" }) : Promise.resolve(null)),
@@ -124,10 +130,15 @@ export function UpgradeBoard() {
   };
 
   const start = async () => {
-    if (!canStart || !target || busy) return;
+    if (!canStart || !target || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
-      const res = await api.upgrade(stakeIds, target.skin_id);
+      // Only ids the current inventory still contains. A selection made
+      // before the list refreshed can otherwise carry an id the server
+      // has already consumed, and the whole attempt is refused for it.
+      const ids = liveStakeItems.map((i) => i.id);
+      const res = await api.upgrade(ids, target.skin_id);
 
       // Convert the server's roll into a needle angle inside (success) or
       // outside (failure) the winning arc.
@@ -153,7 +164,17 @@ export function UpgradeBoard() {
         "Не удалось выполнить апгрейд",
         err instanceof ApiRequestError ? err.message : "Попробуйте ещё раз",
       );
+      // The usual reason an attempt is refused is that the list is out of
+      // date — an item was consumed or sold elsewhere. Refetching here is
+      // what stops one stale entry turning into an endless run of the
+      // same error, which is exactly how this looked in practice.
+      setStakeIds([]);
+      setState("idle");
+      setSettled(null);
+      reload();
+      void refresh();
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -177,6 +198,9 @@ export function UpgradeBoard() {
     setSettled(null);
     setTarget(null);
     setStakeIds([]);
+    // The board has been sitting on one snapshot since the attempt; the
+    // inventory has moved on.
+    reload();
   };
 
   if (ready && !user) {

@@ -41,6 +41,25 @@ const rarityRank = (slug: string) => {
 
 const now = () => Date.now();
 
+/** How long an unpaid order stays payable. Matches the server's TTL. */
+const ORDER_TTL_MS = 30 * 60_000;
+
+/** Opaque order id, in place of the server's random token. */
+function randomId(): string {
+  const buf = new Uint8Array(9);
+  crypto.getRandomValues(buf);
+  return btoa(String.fromCharCode(...buf)).replace(/[+/=]/g, "").slice(0, 12);
+}
+
+function expireIfStale<T extends { status: string; expires_at: number }>(
+  order: T | undefined,
+): T | undefined {
+  if (order && order.status === "pending" && now() > order.expires_at) {
+    order.status = "expired";
+  }
+  return order;
+}
+
 function fail(code: string, message: string, status = 400): never {
   throw new ApiRequestError(code, message, status);
 }
@@ -133,6 +152,18 @@ function record(
 
 const owned = (state: DemoState) => state.inventory.filter((i) => i.status === "owned");
 
+/**
+ * A detached copy of a stored object.
+ *
+ * Everything in this module mutates the persisted state in place, which
+ * is fine for storage and wrong for React: a component handed the same
+ * reference twice sees no change and does not re-render. Responses
+ * therefore leave through here.
+ */
+function snapshot<T>(value: T): T {
+  return value == null ? value : (JSON.parse(JSON.stringify(value)) as T);
+}
+
 /* ─────────────── inventory helpers ─────────────── */
 
 function addItem(
@@ -195,7 +226,10 @@ async function route(path: string, method: string, body: Record<string, unknown>
   const state = load();
 
   /* ── auth ── */
-  if (route === "auth/me") return { user: state.user };
+  // A copy, always. The engine mutates the stored user in place, so
+  // handing back the same object leaves React comparing a reference to
+  // itself — the balance changed and the header did not.
+  if (route === "auth/me") return { user: snapshot(state.user) };
 
   if (route === "auth/register" || route === "auth/login") {
     const username = String(body.username ?? "").trim();
@@ -213,7 +247,7 @@ async function route(path: string, method: string, body: Record<string, unknown>
         s.transactions[0].balance_after_minor = STARTING_BALANCE;
         s.transactions[0].label = "Демо-баланс";
       }
-      return { user: s.user };
+      return { user: snapshot(s.user) };
     });
   }
 
@@ -327,7 +361,7 @@ async function route(path: string, method: string, body: Record<string, unknown>
       counts[i.rarity.slug] = (counts[i.rarity.slug] ?? 0) + 1;
     }
     return {
-      items,
+      items: snapshot(items),
       total: items.length,
       value_minor: items.reduce((s, i) => s + i.price_minor, 0),
       counts,
@@ -364,7 +398,7 @@ async function route(path: string, method: string, body: Record<string, unknown>
     const offset = Number(params.get("offset") ?? 0);
     if (params.get("scope") === "all") fail("forbidden", "Недостаточно прав", 403);
     return {
-      openings: state.openings.slice(offset, offset + limit),
+      openings: snapshot(state.openings.slice(offset, offset + limit)),
       total: state.openings.length,
     };
   }
@@ -375,13 +409,15 @@ async function route(path: string, method: string, body: Record<string, unknown>
     // only real account is yours, so the rail fills as you play rather
     // than inventing strangers to populate it.
     return {
-      drops: state.openings.filter((o) => rarityRank(o.rarity.slug) >= 1).slice(0, limit),
+      drops: snapshot(
+        state.openings.filter((o) => rarityRank(o.rarity.slug) >= 1).slice(0, limit),
+      ),
     };
   }
 
   if (route === "transactions") {
     const limit = Number(params.get("limit") ?? 60);
-    return { transactions: state.transactions.slice(0, limit) };
+    return { transactions: snapshot(state.transactions.slice(0, limit)) };
   }
 
   if (route === "me/stats") {
@@ -448,11 +484,65 @@ async function route(path: string, method: string, body: Record<string, unknown>
     const rates: Record<string, number> = { card: 0, sbp: 0.03, crypto: 0.07 };
     const rate = rates[String(body.method ?? "card")];
     if (rate === undefined) fail("invalid_input", "Неизвестный способ оплаты", 422);
+
+    // Opening an order does not touch the balance — same rule as the
+    // server. Calling this in a loop produces unpaid orders and nothing
+    // else, which is the whole point of the change.
     return mutate((s) => {
-      const bonus = Math.round(amount * 100 * rate);
-      const credited = amount * 100 + bonus;
-      const balance = record(s, "deposit", "Пополнение баланса", credited);
-      return { credited_minor: credited, bonus_minor: bonus, balance_minor: balance };
+      requireUser(s);
+      const order = {
+        id: randomId(),
+        provider: "mock",
+        method: String(body.method ?? "card"),
+        amount_minor: amount * 100,
+        bonus_minor: Math.round(amount * 100 * rate),
+        credited_minor: 0,
+        status: "pending" as const,
+        failure_reason: null,
+        created_at: now(),
+        expires_at: now() + ORDER_TTL_MS,
+        simulated: true,
+      };
+      s.orders.unshift(order);
+      return { order: snapshot(order), pay_url: `/wallet/pay/${order.id}`, simulated: true };
+    });
+  }
+
+  const orderRoute = route.match(/^wallet\/orders\/([^/]+)$/);
+  if (orderRoute) {
+    const order = expireIfStale(state.orders.find((o) => o.id === orderRoute[1]));
+    if (!order) fail("not_found", "Заказ не найден", 404);
+    return { order: snapshot(order) };
+  }
+
+  const simulateRoute = route.match(/^wallet\/orders\/([^/]+)\/simulate$/);
+  if (simulateRoute) {
+    const outcome = String(body.outcome ?? "paid");
+    if (outcome !== "paid" && outcome !== "failed") {
+      fail("invalid_input", "Неизвестный исход платежа", 422);
+    }
+    return mutate((s) => {
+      const order = s.orders.find((o) => o.id === simulateRoute[1]);
+      if (!order) fail("not_found", "Заказ не найден", 404);
+      // Only a pending order settles; a replayed confirmation credits
+      // nothing, exactly as the server's conditional UPDATE guarantees.
+      if (order.status !== "pending") {
+        return { order: snapshot(order), credited: false, balance_minor: null };
+      }
+      if (now() > order.expires_at) {
+        order.status = "expired";
+        fail("conflict", "Срок оплаты заказа истёк", 409);
+      }
+      if (outcome === "failed") {
+        order.status = "failed";
+        order.failure_reason = "Платёж отменён плательщиком";
+        return { order: snapshot(order), credited: false, balance_minor: null };
+      }
+      const total = order.amount_minor + order.bonus_minor;
+      order.status = "paid";
+      order.credited_minor = total;
+      const balance = record(s, "deposit", "Пополнение баланса", total);
+      return { order: snapshot(order), credited: true, balance_minor: balance };
     });
   }
 

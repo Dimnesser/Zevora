@@ -256,6 +256,39 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at DESC);
 
+-- ─────────────── payments ───────────────
+
+-- A top-up is an order, not an instant credit.
+--
+-- The balance moves only when a payment provider confirms the money
+-- arrived, which is the difference between a wallet and a button that
+-- prints money. `provider_ref` is the provider's own id for the payment,
+-- and the UNIQUE index on it is what makes a replayed webhook a no-op.
+CREATE TABLE IF NOT EXISTS payment_orders (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- Opaque id used in URLs and handed to the provider; the row id is
+  -- sequential and would leak volume.
+  public_id      TEXT    NOT NULL UNIQUE,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider       TEXT    NOT NULL,
+  method         TEXT    NOT NULL,
+  amount_minor   INTEGER NOT NULL CHECK (amount_minor > 0),
+  bonus_minor    INTEGER NOT NULL DEFAULT 0 CHECK (bonus_minor >= 0),
+  credited_minor INTEGER NOT NULL DEFAULT 0 CHECK (credited_minor >= 0),
+  status         TEXT    NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','paid','failed','expired','cancelled')),
+  provider_ref   TEXT,
+  failure_reason TEXT,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  expires_at     INTEGER NOT NULL,
+  credited_at    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON payment_orders(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON payment_orders(status, expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_ref
+  ON payment_orders(provider, provider_ref) WHERE provider_ref IS NOT NULL;
+
 -- ─────────────── idempotency ───────────────
 
 -- A replayed request (double click, retry, flaky network) inserts the

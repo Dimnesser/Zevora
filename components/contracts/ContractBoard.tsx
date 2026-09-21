@@ -104,11 +104,13 @@ export function ContractBoard() {
   };
 
   const submit = async () => {
-    if (!full) return;
+    if (!full || running) return;
     setRunning(true);
     setConsumed(chosen);
     try {
-      const res = await api.runContract(picked);
+      // As in the upgrade board: send the ids the inventory still has,
+      // not whatever was selected before the last refresh.
+      const res = await api.runContract(chosen.map((i) => i.id));
       setResult(res);
       setPicked([]);
       setNonce((n) => n + 1);

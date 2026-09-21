@@ -21,6 +21,20 @@ import type {
 
 const KEY = "zevora.demo.v1";
 
+export interface DemoOrder {
+  id: string;
+  provider: string;
+  method: string;
+  amount_minor: number;
+  bonus_minor: number;
+  credited_minor: number;
+  status: "pending" | "paid" | "failed" | "expired" | "cancelled";
+  failure_reason: string | null;
+  created_at: number;
+  expires_at: number;
+  simulated: boolean;
+}
+
 export interface DemoState {
   version: 1;
   user: SessionUser | null;
@@ -31,6 +45,8 @@ export interface DemoState {
   openings: Opening[];
   /** Replayed responses, keyed as the server keys idempotency records. */
   idempotency: Record<string, unknown>;
+  /** Top-up orders, mirroring the server's payment_orders table. */
+  orders: DemoOrder[];
 }
 
 function blank(): DemoState {
@@ -42,6 +58,7 @@ function blank(): DemoState {
     transactions: [],
     openings: [],
     idempotency: {},
+    orders: [],
   };
 }
 
@@ -54,6 +71,9 @@ export function load(): DemoState {
     const raw = window.localStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as DemoState) : null;
     cache = parsed && parsed.version === 1 ? parsed : blank();
+    // A state written before orders existed is still version 1; filling
+    // the gap costs one line and beats discarding somebody's inventory.
+    if (!cache.orders) cache.orders = [];
   } catch {
     // Private mode, blocked storage, corrupted JSON — a fresh account is
     // a better outcome than a page that will not render.
