@@ -278,6 +278,69 @@ async function main() {
   r = await alice("/api/inventory/sell", { method: "POST", body: { ids: [-1] } });
   check("Отрицательный id отклонён", r.status === 422, `got ${r.status}`);
 
+  // ───────────── upgrade ─────────────
+  section("Апгрейд");
+
+  const up = makeClient();
+  await up("/api/auth/register", { method: "POST", body: { username: `up_${rnd()}`, password: "secret123" } });
+  await fund(up, 5000);
+  for (let i = 0; i < 6; i++) {
+    await up(`/api/cases/${cheap.slug}/open`, { method: "POST", headers: { "idempotency-key": `up${i}${rnd()}` } });
+  }
+  const upInv = (await up("/api/inventory")).json.items.filter((i) => i.status === "owned");
+  const upSkins = (await anon(`/api/cases/${cheap.slug}`)).json.items;
+  const upTarget = upSkins
+    .filter((x) => x.price_minor > upInv[0].price_minor * 1.5)
+    .sort((a, b) => a.price_minor - b.price_minor)[0];
+
+  r = await up("/api/upgrade", { method: "POST", body: { item_ids: [], target_skin_id: upTarget.skin_id } });
+  check("Апгрейд без ставки отклонён", r.status === 422, `got ${r.status}`);
+
+  r = await up("/api/upgrade", {
+    method: "POST",
+    body: { item_ids: upInv.slice(0, 6).map((i) => i.id), target_skin_id: upTarget.skin_id },
+  });
+  check("Больше пяти предметов в ставке отклонено", r.status === 422, `got ${r.status}`);
+
+  // Ставка — предметы, а не деньги: баланс не должен сдвинуться ни при
+  // выигрыше, ни при проигрыше.
+  const upBalBefore = (await up("/api/auth/me")).json.user.balance_minor;
+  r = await up("/api/upgrade", {
+    method: "POST",
+    body: { item_ids: [upInv[0].id], target_skin_id: upTarget.skin_id },
+  });
+  check("Апгрейд выполняется", r.status === 200, `got ${r.status} ${JSON.stringify(r.json?.error)}`);
+  const upBalAfter = (await up("/api/auth/me")).json.user.balance_minor;
+  check("Апгрейд не двигает денежный баланс",
+        upBalAfter === upBalBefore,
+        `${upBalBefore} → ${upBalAfter} (исход: ${r.json?.success ? "успех" : "провал"})`);
+
+  const upAfter = (await up("/api/inventory")).json.items;
+  check("Ставка списана из инвентаря",
+        !upAfter.some((i) => i.id === upInv[0].id && i.status === "owned"));
+  if (r.json?.success) {
+    check("При успехе предмет добавлен в инвентарь",
+          upAfter.some((i) => i.id === r.json.won.inventory_id && i.status === "owned"));
+  }
+
+  // Несколько предметов в ставке заведомо дороже самого дешёвого скина
+  // кейса — один мог оказаться дешевле из-за износа.
+  const cheapestSkin = [...upSkins].sort((a, b) => a.price_minor - b.price_minor)[0];
+  const rest = (await up("/api/inventory")).json.items.filter((i) => i.status === "owned");
+  const overStake = [];
+  let sum = 0;
+  for (const item of rest) {
+    if (sum > cheapestSkin.price_minor) break;
+    overStake.push(item.id);
+    sum += item.price_minor;
+  }
+  r = await up("/api/upgrade", {
+    method: "POST",
+    body: { item_ids: overStake, target_skin_id: cheapestSkin.skin_id },
+  });
+  check("Цель дешевле ставки отклонена", r.status === 422,
+        `got ${r.status}, ставка ${sum} против цели ${cheapestSkin.price_minor}`);
+
   // ───────────── contracts ─────────────
   section("Контракты");
 

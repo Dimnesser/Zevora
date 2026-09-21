@@ -106,7 +106,10 @@ export function UpgradeBoard() {
     : 0;
   const chance = frozen?.chance ?? liveChance;
   const multiplier = target && stakeValue > 0 ? target.price_minor / stakeValue : 0;
-  const profit = target ? target.price_minor - stakeValue : 0;
+  // Both describe a trade, so neither means anything until something is
+  // actually staked — a profit of the target's full price against an
+  // empty stake reads as a free win.
+  const profit = target && stakeValue > 0 ? target.price_minor - stakeValue : 0;
   const canStart = liveStakeItems.length > 0 && Boolean(target) && state === "idle";
 
   const toggleStake = (id: number) => {

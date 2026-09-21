@@ -129,14 +129,28 @@ function requireUser(state: DemoState) {
   return state.user;
 }
 
+/**
+ * Writes a ledger line, and — unless told otherwise — moves the balance
+ * by the same amount.
+ *
+ * `moves: false` mirrors the server, where `recordTransaction` without
+ * `applyCredit` records the line and leaves the balance alone. An upgrade
+ * is the case that needs it: the stake is items, which have already been
+ * consumed, so its signed amount describes what the attempt was worth and
+ * must never be taken out of the money balance. Doing so debited the
+ * player for items they had already handed over, and on a win it invented
+ * money that no rule allows.
+ */
 function record(
   state: DemoState,
   kind: string,
   label: string,
   amount: number,
+  opts: { moves?: boolean } = {},
 ): number {
   const user = requireUser(state);
-  const balance = user.balance_minor + amount;
+  const moves = opts.moves !== false;
+  const balance = moves ? user.balance_minor + amount : user.balance_minor;
   if (balance < 0) fail("insufficient_funds", "Недостаточно средств на балансе", 409);
   user.balance_minor = balance;
   state.transactions.unshift({
@@ -666,6 +680,10 @@ async function route(path: string, method: string, body: Record<string, unknown>
 
     return mutate((s) => {
       const user = requireUser(s);
+      // An empty stake would otherwise sail through the length check and
+      // buy a 1% shot at anything for nothing.
+      if (ids.length === 0) fail("invalid_input", "Выберите предметы для ставки", 422);
+      if (ids.length > 5) fail("invalid_input", "Максимум 5 предметов в ставке", 422);
       const staked = s.inventory.filter((i) => ids.includes(i.id) && i.status === "owned");
       if (staked.length !== ids.length) fail("conflict", "Некоторые предметы недоступны", 409);
       const stake = staked.reduce((sum, i) => sum + i.price_minor, 0);
@@ -695,6 +713,9 @@ async function route(path: string, method: string, body: Record<string, unknown>
           ? `Апгрейд удался — ${target.market_name}`
           : `Апгрейд не удался — ${staked.length} предм.`,
         success ? (won?.price_minor ?? 0) - stake : -stake,
+        // The stake was items, not money; the line records the attempt's
+        // worth without the balance following it.
+        { moves: false },
       );
       user.xp += 60;
 
