@@ -71,12 +71,15 @@ jobs:
           npm run build:demo-data
 
       - name: Build the static site
-        run: npm run build:static
+        # The owner's login keeps its original casing, and Pages serves the
+        # host in lower case — a sitemap should carry the address that is
+        # actually served, so the host is folded here.
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          name="${GITHUB_REPOSITORY##*/}"
+          ZEVORA_SITE_URL="https://${owner,,}.github.io/${name}" npm run build:static
         env:
           ZEVORA_BASE_PATH: /${{ github.event.repository.name }}
-          # So sitemap.xml carries the address the site is actually served
-          # from rather than the placeholder.
-          ZEVORA_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
 
       - name: Push docs/ to gh-pages
         run: |
